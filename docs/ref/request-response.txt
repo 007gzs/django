@@ -420,8 +420,6 @@ a subclass of dictionary. Exceptions are outlined here:
 
 .. classmethod:: QueryDict.fromkeys(iterable, value='', mutable=False, encoding=None)
 
-    .. versionadded:: 1.11
-
     Creates a new ``QueryDict`` with keys from ``iterable`` and each value
     equal to ``value``. For example::
 
@@ -754,10 +752,9 @@ Methods
       in UTC. If ``expires`` is a ``datetime`` object, the ``max_age``
       will be calculated.
     * Use ``domain`` if you want to set a cross-domain cookie. For example,
-      ``domain=".lawrence.com"`` will set a cookie that is readable by
-      the domains www.lawrence.com, blogs.lawrence.com and
-      calendars.lawrence.com. Otherwise, a cookie will only be readable by
-      the domain that set it.
+      ``domain="example.com"`` will set a cookie that is readable by the
+      domains www.example.com, blog.example.com, etc. Otherwise, a cookie will
+      only be readable by the domain that set it.
     * Use ``httponly=True`` if you want to prevent client-side
       JavaScript from having access to the cookie.
 
@@ -1006,7 +1003,7 @@ with the following notable differences:
 :class:`StreamingHttpResponse` should only be used in situations where it is
 absolutely required that the whole content isn't iterated before transferring
 the data to the client. Because the content can't be accessed, many
-middlewares can't function normally. For example the ``ETag`` and
+middleware can't function normally. For example the ``ETag`` and
 ``Content-Length`` headers can't be generated for streaming responses.
 
 Attributes

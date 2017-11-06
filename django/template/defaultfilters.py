@@ -1,7 +1,7 @@
 """Default variable filters."""
 import random as random_module
 import re
-from contextlib import suppress
+import types
 from decimal import ROUND_HALF_UP, Context, Decimal, InvalidOperation
 from functools import wraps
 from operator import itemgetter
@@ -38,12 +38,11 @@ def stringfilter(func):
     passed as the first positional argument will be converted to a string.
     """
     def _dec(*args, **kwargs):
-        if args:
-            args = list(args)
-            args[0] = str(args[0])
-            if (isinstance(args[0], SafeData) and
-                    getattr(_dec._decorated_function, 'is_safe', False)):
-                return mark_safe(func(*args, **kwargs))
+        args = list(args)
+        args[0] = str(args[0])
+        if (isinstance(args[0], SafeData) and
+                getattr(_dec._decorated_function, 'is_safe', False)):
+            return mark_safe(func(*args, **kwargs))
         return func(*args, **kwargs)
 
     # Include a reference to the real function (used to check original
@@ -223,6 +222,8 @@ def stringformat(value, arg):
     See https://docs.python.org/3/library/stdtypes.html#printf-style-string-formatting
     for documentation of Python string formatting.
     """
+    if isinstance(value, tuple):
+        value = str(value)
     try:
         return ("%" + str(arg)) % value
     except (ValueError, TypeError):
@@ -517,11 +518,11 @@ def first(value):
 @register.filter(is_safe=True, needs_autoescape=True)
 def join(value, arg, autoescape=True):
     """Join a list with a string, like Python's ``str.join(list)``."""
-    if autoescape:
-        value = [conditional_escape(v) for v in value]
     try:
+        if autoescape:
+            value = [conditional_escape(v) for v in value]
         data = conditional_escape(arg).join(value)
-    except AttributeError:  # fail silently but nicely
+    except TypeError:  # Fail silently if arg isn't iterable.
         return value
     return mark_safe(data)
 
@@ -607,7 +608,7 @@ def unordered_list(value, autoescape=True):
 
     def walk_items(item_list):
         item_iterator = iter(item_list)
-        with suppress(StopIteration):
+        try:
             item = next(item_iterator)
             while True:
                 try:
@@ -615,7 +616,7 @@ def unordered_list(value, autoescape=True):
                 except StopIteration:
                     yield item, None
                     break
-                if not isinstance(next_item, str):
+                if isinstance(next_item, (list, tuple, types.GeneratorType)):
                     try:
                         iter(next_item)
                     except TypeError:
@@ -626,6 +627,8 @@ def unordered_list(value, autoescape=True):
                         continue
                 yield item, None
                 item = next_item
+        except StopIteration:
+            pass
 
     def list_formatter(item_list, tabs=1):
         indent = '\t' * tabs
@@ -875,9 +878,11 @@ def pluralize(value, arg='s'):
     except ValueError:  # Invalid string that's not a number.
         pass
     except TypeError:  # Value isn't a string or a number; maybe it's a list?
-        with suppress(TypeError):  # len() of unsized object.
+        try:
             if len(value) != 1:
                 return plural_suffix
+        except TypeError:  # len() of unsized object.
+            pass
     return singular_suffix
 
 

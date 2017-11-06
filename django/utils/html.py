@@ -1,6 +1,7 @@
 """HTML utilities suitable for global use."""
 
 import re
+from html.parser import HTMLParser
 from urllib.parse import (
     parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit,
 )
@@ -10,8 +11,6 @@ from django.utils.functional import Promise, keep_lazy, keep_lazy_text
 from django.utils.http import RFC3986_GENDELIMS, RFC3986_SUBDELIMS
 from django.utils.safestring import SafeData, SafeText, mark_safe
 from django.utils.text import normalize_newlines
-
-from .html_parser import HTMLParseError, HTMLParser
 
 # Configuration for urlize() function.
 TRAILING_PUNCTUATION_RE = re.compile(
@@ -31,6 +30,14 @@ simple_url_re = re.compile(r'^https?://\[?\w', re.IGNORECASE)
 simple_url_2_re = re.compile(r'^www\.|^(?!http)\w[^@]+\.(com|edu|gov|int|mil|net|org)($|/.*)$', re.IGNORECASE)
 simple_email_re = re.compile(r'^\S+@\S+\.\S+$')
 
+_html_escapes = {
+    ord('&'): '&amp;',
+    ord('<'): '&lt;',
+    ord('>'): '&gt;',
+    ord('"'): '&quot;',
+    ord("'"): '&#39;',
+}
+
 
 @keep_lazy(str, SafeText)
 def escape(text):
@@ -42,10 +49,7 @@ def escape(text):
     This may result in double-escaping. If this is a concern, use
     conditional_escape() instead.
     """
-    return mark_safe(
-        str(text).replace('&', '&amp;').replace('<', '&lt;')
-        .replace('>', '&gt;').replace('"', '&quot;').replace("'", '&#39;')
-    )
+    return mark_safe(str(text).translate(_html_escapes))
 
 
 _js_escapes = {
@@ -132,7 +136,7 @@ def linebreaks(value, autoescape=False):
 
 class MLStripper(HTMLParser):
     def __init__(self):
-        HTMLParser.__init__(self)
+        HTMLParser.__init__(self, convert_charrefs=False)
         self.reset()
         self.fed = []
 
@@ -154,16 +158,9 @@ def _strip_once(value):
     Internal tag stripping utility used by strip_tags.
     """
     s = MLStripper()
-    try:
-        s.feed(value)
-    except HTMLParseError:
-        return value
-    try:
-        s.close()
-    except HTMLParseError:
-        return s.get_data() + s.rawdata
-    else:
-        return s.get_data()
+    s.feed(value)
+    s.close()
+    return s.get_data()
 
 
 @keep_lazy_text

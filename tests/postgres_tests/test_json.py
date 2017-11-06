@@ -1,23 +1,23 @@
 import datetime
 import uuid
-from contextlib import suppress
 from decimal import Decimal
 
-from django.core import exceptions, serializers
+from django.core import checks, exceptions, serializers
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms import CharField, Form, widgets
-from django.test import skipUnlessDBFeature
+from django.test.utils import isolate_apps
 from django.utils.html import escape
 
 from . import PostgreSQLTestCase
-from .models import JSONModel
+from .models import JSONModel, PostgreSQLModel
 
-with suppress(ImportError):
+try:
     from django.contrib.postgres import forms
     from django.contrib.postgres.fields import JSONField
+except ImportError:
+    pass
 
 
-@skipUnlessDBFeature('has_jsonb_datatype')
 class TestSaveLoad(PostgreSQLTestCase):
     def test_null(self):
         instance = JSONModel()
@@ -91,7 +91,6 @@ class TestSaveLoad(PostgreSQLTestCase):
         self.assertEqual(loaded.field_custom, obj_after)
 
 
-@skipUnlessDBFeature('has_jsonb_datatype')
 class TestQuerying(PostgreSQLTestCase):
     @classmethod
     def setUpTestData(cls):
@@ -261,7 +260,42 @@ class TestQuerying(PostgreSQLTestCase):
         self.assertTrue(JSONModel.objects.filter(field__foo__iregex=r'^bAr$').exists())
 
 
-@skipUnlessDBFeature('has_jsonb_datatype')
+@isolate_apps('postgres_tests')
+class TestChecks(PostgreSQLTestCase):
+
+    def test_invalid_default(self):
+        class MyModel(PostgreSQLModel):
+            field = JSONField(default={})
+
+        model = MyModel()
+        self.assertEqual(model.check(), [
+            checks.Warning(
+                msg=(
+                    "JSONField default should be a callable instead of an "
+                    "instance so that it's not shared between all field "
+                    "instances."
+                ),
+                hint='Use a callable instead, e.g., use `dict` instead of `{}`.',
+                obj=MyModel._meta.get_field('field'),
+                id='postgres.E003',
+            )
+        ])
+
+    def test_valid_default(self):
+        class MyModel(PostgreSQLModel):
+            field = JSONField(default=dict)
+
+        model = MyModel()
+        self.assertEqual(model.check(), [])
+
+    def test_valid_default_none(self):
+        class MyModel(PostgreSQLModel):
+            field = JSONField(default=None)
+
+        model = MyModel()
+        self.assertEqual(model.check(), [])
+
+
 class TestSerialization(PostgreSQLTestCase):
     test_data = (
         '[{"fields": {"field": {"a": "b", "c": null}, "field_custom": null}, '

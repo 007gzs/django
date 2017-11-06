@@ -64,8 +64,8 @@ def quote(s):
     """
     Ensure that primary key values do not confuse the admin URLs by escaping
     any '/', '_' and ':' and similarly problematic characters.
-    Similar to urllib.quote, except that the quoting is slightly different so
-    that it doesn't get automatically unquoted by the Web browser.
+    Similar to urllib.parse.quote(), except that the quoting is slightly
+    different so that it doesn't get automatically unquoted by the Web browser.
     """
     if not isinstance(s, str):
         return s
@@ -78,9 +78,7 @@ def quote(s):
 
 
 def unquote(s):
-    """
-    Undo the effects of quote(). Based heavily on urllib.unquote().
-    """
+    """Undo the effects of quote(). Based heavily on urllib.parse.unquote()."""
     mychr = chr
     myatoi = int
     list = s.split('_')
@@ -394,7 +392,7 @@ def display_for_field(value, field, empty_value_display):
         return dict(field.flatchoices).get(value, empty_value_display)
     # NullBooleanField needs special-case null-handling, so it comes
     # before the general null test.
-    elif isinstance(field, models.BooleanField) or isinstance(field, models.NullBooleanField):
+    elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
         return _boolean_icon(value)
     elif value is None:
         return empty_value_display

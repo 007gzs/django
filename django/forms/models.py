@@ -4,7 +4,6 @@ and database field objects.
 """
 
 from collections import OrderedDict
-from contextlib import suppress
 from itertools import chain
 
 from django.core.exceptions import (
@@ -258,8 +257,8 @@ class ModelFormMetaclass(DeclarativeFieldsMetaclass):
             )
 
             # make sure opts.fields doesn't specify an invalid field
-            none_model_fields = [k for k, v in fields.items() if not v]
-            missing_fields = set(none_model_fields) - set(new_class.declared_fields)
+            none_model_fields = {k for k, v in fields.items() if not v}
+            missing_fields = none_model_fields.difference(new_class.declared_fields)
             if missing_fields:
                 message = 'Unknown field(s) (%s) specified for %s'
                 message = message % (', '.join(missing_fields),
@@ -615,8 +614,10 @@ class BaseModelFormSet(BaseFormSet):
                 kwargs['instance'] = self.get_queryset()[i]
         elif self.initial_extra:
             # Set initial values for extra forms
-            with suppress(IndexError):
+            try:
                 kwargs['initial'] = self.initial_extra[i - self.initial_form_count()]
+            except IndexError:
+                pass
         form = super()._construct_form(i, **kwargs)
         if pk_required:
             form.fields[self.model._meta.pk.name].required = True
@@ -682,8 +683,8 @@ class BaseModelFormSet(BaseFormSet):
         for form in valid_forms:
             exclude = form._get_validation_exclusions()
             unique_checks, date_checks = form.instance._get_unique_checks(exclude=exclude)
-            all_unique_checks = all_unique_checks.union(set(unique_checks))
-            all_date_checks = all_date_checks.union(set(date_checks))
+            all_unique_checks.update(unique_checks)
+            all_date_checks.update(date_checks)
 
         errors = []
         # Do each of the unique checks (unique and unique_together)
@@ -836,7 +837,7 @@ class BaseModelFormSet(BaseFormSet):
                         pk_value = None
                 except IndexError:
                     pk_value = None
-            if isinstance(pk, OneToOneField) or isinstance(pk, ForeignKey):
+            if isinstance(pk, (ForeignKey, OneToOneField)):
                 qs = pk.remote_field.model._default_manager.get_queryset()
             else:
                 qs = self.model._default_manager.get_queryset()
@@ -1140,7 +1141,7 @@ class ModelChoiceIterator:
             yield self.choice(obj)
 
     def __len__(self):
-        return (len(self.queryset) + (1 if self.field.empty_label is not None else 0))
+        return len(self.queryset) + (1 if self.field.empty_label is not None else 0)
 
     def choice(self, obj):
         return (self.field.prepare_value(obj), self.field.label_from_instance(obj))
@@ -1250,6 +1251,8 @@ class ModelChoiceField(ChoiceField):
         return Field.validate(self, value)
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         initial_value = initial if initial is not None else ''
         data_value = data if data is not None else ''
         return str(self.prepare_value(initial_value)) != str(data_value)
@@ -1334,6 +1337,8 @@ class ModelMultipleChoiceField(ModelChoiceField):
         return super().prepare_value(value)
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         if initial is None:
             initial = []
         if data is None:

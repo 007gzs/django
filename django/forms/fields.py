@@ -5,10 +5,10 @@ Field classes.
 import copy
 import datetime
 import itertools
+import math
 import os
 import re
 import uuid
-from contextlib import suppress
 from decimal import Decimal, DecimalException
 from io import BytesIO
 from urllib.parse import urlsplit, urlunsplit
@@ -216,14 +216,16 @@ class CharField(Field):
             self.validators.append(validators.MinLengthValidator(int(min_length)))
         if max_length is not None:
             self.validators.append(validators.MaxLengthValidator(int(max_length)))
+        self.validators.append(validators.ProhibitNullCharactersValidator())
 
     def to_python(self, value):
         """Return a string."""
+        if value not in self.empty_values:
+            value = str(value)
+            if self.strip:
+                value = value.strip()
         if value in self.empty_values:
             return self.empty_value
-        value = str(value)
-        if self.strip:
-            value = value.strip()
         return value
 
     def widget_attrs(self, widget):
@@ -306,12 +308,10 @@ class FloatField(IntegerField):
 
     def validate(self, value):
         super().validate(value)
-
-        # Check for NaN (which is the only thing not equal to itself) and +/- infinity
-        if value != value or value in (Decimal('Inf'), Decimal('-Inf')):
+        if value in self.empty_values:
+            return
+        if not math.isfinite(value):
             raise ValidationError(self.error_messages['invalid'], code='invalid')
-
-        return value
 
     def widget_attrs(self, widget):
         attrs = super().widget_attrs(widget)
@@ -352,10 +352,7 @@ class DecimalField(IntegerField):
         super().validate(value)
         if value in self.empty_values:
             return
-        # Check for NaN, Inf and -Inf values. We can't compare directly for NaN,
-        # since it is never equal to itself. However, NaN is the only value that
-        # isn't equal to itself, so we can use this to identify NaN
-        if value != value or value == Decimal("Inf") or value == Decimal("-Inf"):
+        if not math.isfinite(value):
             raise ValidationError(self.error_messages['invalid'], code='invalid')
 
     def widget_attrs(self, widget):
@@ -472,6 +469,12 @@ class DateTimeField(BaseTemporalField):
 class DurationField(Field):
     default_error_messages = {
         'invalid': _('Enter a valid duration.'),
+        'overflow': _(
+            'The number of days must be between {min_days} and {max_days}.'.format(
+                min_days=datetime.timedelta.min.days,
+                max_days=datetime.timedelta.max.days,
+            )
+        )
     }
 
     def prepare_value(self, value):
@@ -484,7 +487,10 @@ class DurationField(Field):
             return None
         if isinstance(value, datetime.timedelta):
             return value
-        value = parse_duration(str(value))
+        try:
+            value = parse_duration(str(value))
+        except OverflowError:
+            raise ValidationError(self.error_messages['overflow'], code='overflow')
         if value is None:
             raise ValidationError(self.error_messages['invalid'], code='invalid')
         return value
@@ -586,6 +592,8 @@ class FileField(Field):
         return data
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         if data is None:
             return False
         return True
@@ -706,6 +714,8 @@ class BooleanField(Field):
             raise ValidationError(self.error_messages['required'], code='required')
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         # Sometimes data or initial may be a string equivalent of a boolean
         # so we should run it through to_python first to get a boolean value
         return self.to_python(initial) != self.to_python(data)
@@ -864,6 +874,8 @@ class MultipleChoiceField(ChoiceField):
                 )
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         if initial is None:
             initial = []
         if data is None:
@@ -1042,6 +1054,8 @@ class MultiValueField(Field):
         raise NotImplementedError('Subclasses must implement this method.')
 
     def has_changed(self, initial, data):
+        if self.disabled:
+            return False
         if initial is None:
             initial = ['' for x in range(0, len(data))]
         else:
@@ -1075,19 +1089,19 @@ class FilePathField(ChoiceField):
         if recursive:
             for root, dirs, files in sorted(os.walk(self.path)):
                 if self.allow_files:
-                    for f in files:
+                    for f in sorted(files):
                         if self.match is None or self.match_re.search(f):
                             f = os.path.join(root, f)
                             self.choices.append((f, f.replace(path, "", 1)))
                 if self.allow_folders:
-                    for f in dirs:
+                    for f in sorted(dirs):
                         if f == '__pycache__':
                             continue
                         if self.match is None or self.match_re.search(f):
                             f = os.path.join(root, f)
                             self.choices.append((f, f.replace(path, "", 1)))
         else:
-            with suppress(OSError):
+            try:
                 for f in sorted(os.listdir(self.path)):
                     if f == '__pycache__':
                         continue
@@ -1096,6 +1110,8 @@ class FilePathField(ChoiceField):
                             (self.allow_folders and os.path.isdir(full_file))) and
                             (self.match is None or self.match_re.search(f))):
                         self.choices.append((full_file, f))
+            except OSError:
+                pass
 
         self.widget.choices = self.choices
 

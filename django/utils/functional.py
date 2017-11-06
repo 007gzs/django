@@ -1,4 +1,5 @@
 import copy
+import itertools
 import operator
 from functools import total_ordering, wraps
 
@@ -189,7 +190,7 @@ def keep_lazy(*resultclasses):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            for arg in list(args) + list(kwargs.values()):
+            for arg in itertools.chain(args, kwargs.values()):
                 if isinstance(arg, Promise):
                     break
             else:
@@ -276,14 +277,6 @@ class LazyObject:
         if self._wrapped is empty:
             self._setup()
         return (unpickle_lazyobject, (self._wrapped,))
-
-    def __getstate__(self):
-        """
-        Prevent older versions of pickle from trying to pickle the __dict__
-        (which in the case of a SimpleLazyObject may contain a lambda). The
-        value will be ignored by __reduce__() and the custom unpickler.
-        """
-        return {}
 
     def __copy__(self):
         if self._wrapped is empty:

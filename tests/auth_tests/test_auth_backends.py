@@ -138,7 +138,7 @@ class BaseModelBackendTest:
         group.permissions.add(group_perm)
 
         self.assertEqual(backend.get_all_permissions(user), {'auth.test_user', 'auth.test_group'})
-        self.assertEqual(backend.get_user_permissions(user), {'auth.test_user', 'auth.test_group'})
+        self.assertEqual(backend.get_user_permissions(user), {'auth.test_user'})
         self.assertEqual(backend.get_group_permissions(user), {'auth.test_group'})
 
         with mock.patch.object(self.UserModel, 'is_anonymous', True):
@@ -164,7 +164,7 @@ class BaseModelBackendTest:
         group.permissions.add(group_perm)
 
         self.assertEqual(backend.get_all_permissions(user), {'auth.test_user', 'auth.test_group'})
-        self.assertEqual(backend.get_user_permissions(user), {'auth.test_user', 'auth.test_group'})
+        self.assertEqual(backend.get_user_permissions(user), {'auth.test_user'})
         self.assertEqual(backend.get_group_permissions(user), {'auth.test_group'})
 
         user.is_active = False
@@ -445,7 +445,11 @@ class NoBackendsTest(TestCase):
         self.user = User.objects.create_user('test', 'test@example.com', 'test')
 
     def test_raises_exception(self):
-        with self.assertRaises(ImproperlyConfigured):
+        msg = (
+            'No authentication backends have been defined. '
+            'Does AUTHENTICATION_BACKENDS contain anything?'
+        )
+        with self.assertRaisesMessage(ImproperlyConfigured, msg):
             self.user.has_perm(('perm', TestObj()))
 
 
@@ -626,7 +630,11 @@ class ImproperlyConfiguredUserModelTest(TestCase):
         request = HttpRequest()
         request.session = self.client.session
 
-        with self.assertRaises(ImproperlyConfigured):
+        msg = (
+            "AUTH_USER_MODEL refers to model 'thismodel.doesntexist' "
+            "that has not been installed"
+        )
+        with self.assertRaisesMessage(ImproperlyConfigured, msg):
             get_user(request)
 
 

@@ -1,19 +1,20 @@
 import datetime
 import uuid
-from contextlib import suppress
 
 from django.conf import settings
 from django.core.exceptions import FieldError
 from django.db import utils
-from django.db.backends import utils as backend_utils
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models import aggregates, fields
+from django.db.models.expressions import Col
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 from django.utils.duration import duration_string
 
 
 class DatabaseOperations(BaseDatabaseOperations):
+    cast_char_field_without_max_length = 'text'
+
     def bulk_batch_size(self, fields, objs):
         """
         SQLite has a compile-time default (SQLITE_LIMIT_VARIABLE_NUMBER) of
@@ -34,12 +35,15 @@ class DatabaseOperations(BaseDatabaseOperations):
         bad_aggregates = (aggregates.Sum, aggregates.Avg, aggregates.Variance, aggregates.StdDev)
         if isinstance(expression, bad_aggregates):
             for expr in expression.get_source_expressions():
-                # Not every subexpression has an output_field which is fine
-                # to ignore.
-                with suppress(FieldError):
+                try:
                     output_field = expr.output_field
+                except FieldError:
+                    # Not every subexpression has an output_field which is fine
+                    # to ignore.
+                    pass
+                else:
                     if isinstance(output_field, bad_fields):
-                        raise NotImplementedError(
+                        raise utils.NotSupportedError(
                             'You cannot use Sum, Avg, StdDev, and Variance '
                             'aggregations on date/time fields in sqlite3 '
                             'since date/time is saved as text.'
@@ -204,7 +208,9 @@ class DatabaseOperations(BaseDatabaseOperations):
             converters.append(self.convert_datefield_value)
         elif internal_type == 'TimeField':
             converters.append(self.convert_timefield_value)
-        elif internal_type == 'DecimalField':
+        # Converter for Col is added with Database.register_converter()
+        # in base.py.
+        elif internal_type == 'DecimalField' and not isinstance(expression, Col):
             converters.append(self.convert_decimalfield_value)
         elif internal_type == 'UUIDField':
             converters.append(self.convert_uuidfield_value)
@@ -212,7 +218,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             converters.append(self.convert_booleanfield_value)
         return converters
 
-    def convert_datetimefield_value(self, value, expression, connection, context):
+    def convert_datetimefield_value(self, value, expression, connection):
         if value is not None:
             if not isinstance(value, datetime.datetime):
                 value = parse_datetime(value)
@@ -220,30 +226,31 @@ class DatabaseOperations(BaseDatabaseOperations):
                 value = timezone.make_aware(value, self.connection.timezone)
         return value
 
-    def convert_datefield_value(self, value, expression, connection, context):
+    def convert_datefield_value(self, value, expression, connection):
         if value is not None:
             if not isinstance(value, datetime.date):
                 value = parse_date(value)
         return value
 
-    def convert_timefield_value(self, value, expression, connection, context):
+    def convert_timefield_value(self, value, expression, connection):
         if value is not None:
             if not isinstance(value, datetime.time):
                 value = parse_time(value)
         return value
 
-    def convert_decimalfield_value(self, value, expression, connection, context):
+    def convert_decimalfield_value(self, value, expression, connection):
         if value is not None:
             value = expression.output_field.format_number(value)
-            value = backend_utils.typecast_decimal(value)
+            # Value is not converted to Decimal here as it will be converted
+            # later in BaseExpression.convert_value().
         return value
 
-    def convert_uuidfield_value(self, value, expression, connection, context):
+    def convert_uuidfield_value(self, value, expression, connection):
         if value is not None:
             value = uuid.UUID(value)
         return value
 
-    def convert_booleanfield_value(self, value, expression, connection, context):
+    def convert_booleanfield_value(self, value, expression, connection):
         return bool(value) if value in (1, 0) else value
 
     def bulk_insert_sql(self, fields, placeholder_rows):

@@ -96,10 +96,6 @@ Widgets of required form fields have the ``required`` HTML attribute. Set the
 ``required`` attribute isn't included on forms of formsets because the browser
 validation may not be correct when adding and deleting formsets.
 
-.. versionadded:: 1.10
-
-    Support for the ``required`` HTML attribute was added.
-
 ``label``
 ---------
 
@@ -390,8 +386,6 @@ For each field, we describe the default widget used if you don't specify
 
     .. attribute:: empty_value
 
-       .. versionadded:: 1.11
-
        The value to use to represent "empty". Defaults to an empty string.
 
 ``ChoiceField``
@@ -572,8 +566,9 @@ For each field, we describe the default widget used if you don't specify
     * Empty value: ``None``
     * Normalizes to: A Python :class:`~python:datetime.timedelta`.
     * Validates that the given value is a string which can be converted into a
-      ``timedelta``.
-    * Error message keys: ``required``, ``invalid``.
+      ``timedelta``. The value must be between :attr:`datetime.timedelta.min`
+      and :attr:`datetime.timedelta.max`.
+    * Error message keys: ``required``, ``invalid``, ``overflow``.
 
     Accepts any format understood by
     :func:`~django.utils.dateparse.parse_duration`.

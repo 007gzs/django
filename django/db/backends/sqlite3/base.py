@@ -33,13 +33,13 @@ def decoder(conv_func):
     return lambda s: conv_func(s.decode())
 
 
-Database.register_converter("bool", decoder(lambda s: s == '1'))
+Database.register_converter("bool", lambda s: s == b'1')
 Database.register_converter("time", decoder(parse_time))
 Database.register_converter("date", decoder(parse_date))
 Database.register_converter("datetime", decoder(parse_datetime))
 Database.register_converter("timestamp", decoder(parse_datetime))
 Database.register_converter("TIMESTAMP", decoder(parse_datetime))
-Database.register_converter("decimal", decoder(backend_utils.typecast_decimal))
+Database.register_converter("decimal", decoder(decimal.Decimal))
 
 Database.register_adapter(decimal.Decimal, backend_utils.rev_typecast_decimal)
 
@@ -153,9 +153,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 'for controlling thread shareability.',
                 RuntimeWarning
             )
-        kwargs.update({'check_same_thread': False})
-        if self.features.can_share_in_memory_db:
-            kwargs.update({'uri': True})
+        kwargs.update({'check_same_thread': False, 'uri': True})
         return kwargs
 
     def get_new_connection(self, conn_params):

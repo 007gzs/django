@@ -15,7 +15,7 @@ from django.test import (
 )
 from django.test.utils import CaptureQueriesContext
 
-from .models import City, Country, Person
+from .models import City, Country, Person, PersonProfile
 
 
 class SelectForUpdateTests(TransactionTestCase):
@@ -30,6 +30,7 @@ class SelectForUpdateTests(TransactionTestCase):
         self.city1 = City.objects.create(name='Liberchies', country=self.country1)
         self.city2 = City.objects.create(name='Samois-sur-Seine', country=self.country2)
         self.person = Person.objects.create(name='Reinhardt', born=self.city1, died=self.city2)
+        self.person_profile = PersonProfile.objects.create(person=self.person)
 
         # We need another database connection in transaction to test that one
         # connection issuing a SELECT ... FOR UPDATE will block.
@@ -56,6 +57,7 @@ class SelectForUpdateTests(TransactionTestCase):
 
     def end_blocking_transaction(self):
         # Roll back the blocking transaction.
+        self.cursor.close()
         self.new_connection.rollback()
         self.new_connection.set_autocommit(True)
 
@@ -224,13 +226,27 @@ class SelectForUpdateTests(TransactionTestCase):
         msg = (
             'Invalid field name(s) given in select_for_update(of=(...)): %s. '
             'Only relational fields followed in the query are allowed. '
-            'Choices are: self, born.'
+            'Choices are: self, born, profile.'
         )
         for name in ['born__country', 'died', 'died__country']:
             with self.subTest(name=name):
                 with self.assertRaisesMessage(FieldError, msg % name):
                     with transaction.atomic():
-                        Person.objects.select_related('born').select_for_update(of=(name,)).get()
+                        Person.objects.select_related(
+                            'born', 'profile',
+                        ).exclude(profile=None).select_for_update(of=(name,)).get()
+
+    @skipUnlessDBFeature('has_select_for_update', 'has_select_for_update_of')
+    def test_reverse_one_to_one_of_arguments(self):
+        """
+        Reverse OneToOneFields may be included in of=(...) as long as NULLs
+        are excluded because LEFT JOIN isn't allowed in SELECT FOR UPDATE.
+        """
+        with transaction.atomic():
+            person = Person.objects.select_related(
+                'profile',
+            ).exclude(profile=None).select_for_update(of=('profile',)).get()
+            self.assertEqual(person.profile, self.person_profile)
 
     @skipUnlessDBFeature('has_select_for_update')
     def test_for_update_after_from(self):
@@ -246,7 +262,8 @@ class SelectForUpdateTests(TransactionTestCase):
         A TransactionManagementError is raised
         when a select_for_update query is executed outside of a transaction.
         """
-        with self.assertRaises(transaction.TransactionManagementError):
+        msg = 'select_for_update cannot be used outside of a transaction.'
+        with self.assertRaisesMessage(transaction.TransactionManagementError, msg):
             list(Person.objects.all().select_for_update())
 
     @skipUnlessDBFeature('has_select_for_update')
@@ -257,7 +274,8 @@ class SelectForUpdateTests(TransactionTestCase):
         only when the query is executed.
         """
         people = Person.objects.all().select_for_update()
-        with self.assertRaises(transaction.TransactionManagementError):
+        msg = 'select_for_update cannot be used outside of a transaction.'
+        with self.assertRaisesMessage(transaction.TransactionManagementError, msg):
             list(people)
 
     @skipUnlessDBFeature('supports_select_for_update_with_limit')
@@ -368,7 +386,10 @@ class SelectForUpdateTests(TransactionTestCase):
             finally:
                 # This method is run in a separate thread. It uses its own
                 # database connection. Close it without waiting for the GC.
-                connection.close()
+                # Connection cannot be closed on Oracle because cursor is still
+                # open.
+                if connection.vendor != 'oracle':
+                    connection.close()
 
         status = []
         thread = threading.Thread(target=raw, kwargs={'status': status})

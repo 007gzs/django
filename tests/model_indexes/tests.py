@@ -89,7 +89,7 @@ class IndexesTests(SimpleTestCase):
 
     def test_name_set(self):
         index_names = [index.name for index in Book._meta.indexes]
-        self.assertEqual(index_names, ['model_index_title_196f42_idx'])
+        self.assertCountEqual(index_names, ['model_index_title_196f42_idx', 'model_index_isbn_34f975_idx'])
 
     def test_abstract_children(self):
         index_names = [index.name for index in ChildModel1._meta.indexes]
@@ -113,7 +113,7 @@ class IndexesTests(SimpleTestCase):
             ]:
                 with self.subTest(fields=fields):
                     index = models.Index(fields=fields, db_tablespace='idx_tbls2')
-                    self.assertIn('"idx_tbls2"', index.create_sql(Book, editor).lower())
+                    self.assertIn('"idx_tbls2"', str(index.create_sql(Book, editor)).lower())
             # Indexes without db_tablespace attribute.
             for fields in [['author'], ['shortcut', 'isbn'], ['title', 'author']]:
                 with self.subTest(fields=fields):
@@ -124,11 +124,11 @@ class IndexesTests(SimpleTestCase):
                     if settings.DEFAULT_INDEX_TABLESPACE:
                         self.assertIn(
                             '"%s"' % settings.DEFAULT_INDEX_TABLESPACE,
-                            index.create_sql(Book, editor).lower()
+                            str(index.create_sql(Book, editor)).lower()
                         )
                     else:
-                        self.assertNotIn('TABLESPACE', index.create_sql(Book, editor))
+                        self.assertNotIn('TABLESPACE', str(index.create_sql(Book, editor)))
             # Field with db_tablespace specified on the model and an index
             # without db_tablespace.
             index = models.Index(fields=['shortcut'])
-            self.assertIn('"idx_tbls"', index.create_sql(Book, editor).lower())
+            self.assertIn('"idx_tbls"', str(index.create_sql(Book, editor)).lower())
