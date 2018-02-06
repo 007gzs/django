@@ -43,7 +43,7 @@ DEFAULT_NAMES = (
     'auto_created', 'index_together', 'apps', 'default_permissions',
     'select_on_save', 'default_related_name', 'required_db_features',
     'required_db_vendor', 'base_manager_name', 'default_manager_name',
-    'manager_inheritance_from_future', 'indexes',
+    'manager_inheritance_from_future', 'indexes', 'db_comment',
 )
 
 
@@ -110,6 +110,7 @@ class Options(object):
         self.get_latest_by = None
         self.order_with_respect_to = None
         self.db_tablespace = settings.DEFAULT_TABLESPACE
+        self.db_comment = None
         self.required_db_features = []
         self.required_db_vendor = None
         self.meta = meta
