@@ -93,6 +93,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         else:
             return "TIME(%s)" % (field_name)
 
+    def comment_sql(self, comment):
+        return "COMMENT='%s'" % comment
+
     def date_interval_sql(self, timedelta):
         return "INTERVAL '%06f' SECOND_MICROSECOND" % (timedelta.total_seconds()), []
 

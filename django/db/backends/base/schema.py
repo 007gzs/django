@@ -304,6 +304,10 @@ class BaseDatabaseSchemaEditor(object):
             "table": self.quote_name(model._meta.db_table),
             "definition": ", ".join(column_sqls)
         }
+        if model._meta.db_comment:
+            comment_sql = self.connection.ops.comment_sql(model._meta.db_comment)
+            if comment_sql:
+                sql += ' ' + comment_sql
         if model._meta.db_tablespace:
             tablespace_sql = self.connection.ops.tablespace_sql(model._meta.db_tablespace)
             if tablespace_sql:
