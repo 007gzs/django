@@ -320,8 +320,8 @@ class BaseDatabaseSchemaEditor(object):
             "table": self.quote_name(model._meta.db_table),
             "definition": ", ".join(column_sqls)
         }
-        if model._meta.db_comment:
-            comment_sql = self.connection.ops.comment_sql(model._meta.db_comment)
+        if model._meta.verbose_name:
+            comment_sql = self.connection.ops.comment_sql(model._meta.verbose_name)
             if comment_sql:
                 sql += ' ' + comment_sql
         if model._meta.db_tablespace:
