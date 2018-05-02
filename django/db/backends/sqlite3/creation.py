@@ -12,9 +12,7 @@ class DatabaseCreation(BaseDatabaseCreation):
         return database_name == ':memory:' or 'mode=memory' in database_name
 
     def _get_test_db_name(self):
-        test_database_name = self.connection.settings_dict['TEST']['NAME']
-        if not test_database_name:
-            test_database_name = ':memory:'
+        test_database_name = self.connection.settings_dict['TEST']['NAME'] or ':memory:'
         if test_database_name == ':memory:':
             return 'file:memorydb_%s?mode=memory&cache=shared' % self.connection.alias
         return test_database_name
@@ -53,10 +51,8 @@ class DatabaseCreation(BaseDatabaseCreation):
         if self.is_in_memory_db(source_database_name):
             return orig_settings_dict
         else:
-            new_settings_dict = orig_settings_dict.copy()
             root, ext = os.path.splitext(orig_settings_dict['NAME'])
-            new_settings_dict['NAME'] = '{}_{}.{}'.format(root, suffix, ext)
-            return new_settings_dict
+            return {**orig_settings_dict, 'NAME': '{}_{}.{}'.format(root, suffix, ext)}
 
     def _clone_test_db(self, suffix, verbosity, keepdb=False):
         source_database_name = self.connection.settings_dict['NAME']

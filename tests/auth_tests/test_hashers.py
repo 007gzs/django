@@ -9,7 +9,6 @@ from django.contrib.auth.hashers import (
 )
 from django.test import SimpleTestCase
 from django.test.utils import override_settings
-from django.utils.encoding import force_bytes
 
 try:
     import crypt
@@ -173,6 +172,7 @@ class TestUtilsHashPass(SimpleTestCase):
         self.assertFalse(check_password(' ', blank_encoded))
 
     @skipUnless(bcrypt, "bcrypt not installed")
+    @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.BCryptPasswordHasher'])
     def test_bcrypt(self):
         encoded = make_password('lètmein', hasher='bcrypt')
         self.assertTrue(is_password_usable(encoded))
@@ -188,6 +188,7 @@ class TestUtilsHashPass(SimpleTestCase):
         self.assertFalse(check_password(' ', blank_encoded))
 
     @skipUnless(bcrypt, "bcrypt not installed")
+    @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.BCryptPasswordHasher'])
     def test_bcrypt_upgrade(self):
         hasher = get_hasher('bcrypt')
         self.assertEqual('bcrypt', hasher.algorithm)
@@ -220,6 +221,7 @@ class TestUtilsHashPass(SimpleTestCase):
             hasher.rounds = old_rounds
 
     @skipUnless(bcrypt, "bcrypt not installed")
+    @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.BCryptPasswordHasher'])
     def test_bcrypt_harden_runtime(self):
         hasher = get_hasher('bcrypt')
         self.assertEqual('bcrypt', hasher.algorithm)
@@ -238,7 +240,7 @@ class TestUtilsHashPass(SimpleTestCase):
 
             # Get the original salt (includes the original workload factor)
             algorithm, data = encoded.split('$', 1)
-            expected_call = (('wrong_password', force_bytes(data[:29])),)
+            expected_call = (('wrong_password', data[:29].encode()),)
             self.assertEqual(hasher.encode.call_args_list, [expected_call] * 3)
 
     def test_unusable(self):
@@ -274,9 +276,11 @@ class TestUtilsHashPass(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, msg % 'lolcat'):
             identify_hasher('lolcat$salt$hash')
 
-    def test_bad_encoded(self):
-        self.assertFalse(is_password_usable('lètmein_badencoded'))
-        self.assertFalse(is_password_usable(''))
+    def test_is_password_usable(self):
+        passwords = ('lètmein_badencoded', '', None)
+        for password in passwords:
+            with self.subTest(password=password):
+                self.assertIs(is_password_usable(password), True)
 
     def test_low_level_pbkdf2(self):
         hasher = PBKDF2PasswordHasher()

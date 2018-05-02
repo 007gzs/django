@@ -42,19 +42,20 @@ class CommandParser(ArgumentParser):
     SystemExit in several occasions, as SystemExit is unacceptable when a
     command is called programmatically.
     """
-    def __init__(self, cmd, **kwargs):
-        self.cmd = cmd
+    def __init__(self, **kwargs):
+        self.missing_args_message = kwargs.pop('missing_args_message', None)
+        self.called_from_command_line = kwargs.pop('called_from_command_line', None)
         super().__init__(**kwargs)
 
     def parse_args(self, args=None, namespace=None):
         # Catch missing argument for a better error message
-        if (hasattr(self.cmd, 'missing_args_message') and
+        if (self.missing_args_message and
                 not (args or any(not arg.startswith('-') for arg in args))):
-            self.error(self.cmd.missing_args_message)
+            self.error(self.missing_args_message)
         return super().parse_args(args, namespace)
 
     def error(self, message):
-        if self.cmd._called_from_command_line:
+        if self.called_from_command_line:
             super().error(message)
         else:
             raise CommandError("Error: %s" % message)
@@ -225,9 +226,14 @@ class BaseCommand:
         parse the arguments to this command.
         """
         parser = CommandParser(
-            self, prog="%s %s" % (os.path.basename(prog_name), subcommand),
+            prog='%s %s' % (os.path.basename(prog_name), subcommand),
             description=self.help or None,
+            missing_args_message=getattr(self, 'missing_args_message', None),
+            called_from_command_line=getattr(self, '_called_from_command_line', None),
         )
+        # Add command-specific arguments first so that they appear in the
+        # --help output before arguments common to all commands.
+        self.add_arguments(parser)
         parser.add_argument('--version', action='version', version=self.get_version())
         parser.add_argument(
             '-v', '--verbosity', action='store', dest='verbosity', default=1,
@@ -251,7 +257,6 @@ class BaseCommand:
             '--no-color', action='store_true', dest='no_color',
             help="Don't colorize the command output.",
         )
-        self.add_arguments(parser)
         return parser
 
     def add_arguments(self, parser):

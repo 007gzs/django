@@ -194,6 +194,28 @@ class CommandTests(SimpleTestCase):
         with self.assertRaisesMessage(TypeError, msg):
             management.call_command('dance', unrecognized=1, unrecognized2=1)
 
+    def test_call_command_with_required_parameters_in_options(self):
+        out = StringIO()
+        management.call_command('required_option', need_me='foo', needme2='bar', stdout=out)
+        self.assertIn('need_me', out.getvalue())
+        self.assertIn('needme2', out.getvalue())
+
+    def test_call_command_with_required_parameters_in_mixed_options(self):
+        out = StringIO()
+        management.call_command('required_option', '--need-me=foo', needme2='bar', stdout=out)
+        self.assertIn('need_me', out.getvalue())
+        self.assertIn('needme2', out.getvalue())
+
+    def test_subparser(self):
+        out = StringIO()
+        management.call_command('subparser', 'foo', 12, stdout=out)
+        self.assertIn('bar', out.getvalue())
+
+    def test_subparser_invalid_option(self):
+        msg = "Error: invalid choice: 'test' (choose from 'foo')"
+        with self.assertRaisesMessage(CommandError, msg):
+            management.call_command('subparser', 'test', 12)
+
 
 class CommandRunTests(AdminScriptTestCase):
     """

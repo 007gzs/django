@@ -20,6 +20,14 @@ from django.test.utils import get_runner
 from django.utils.deprecation import RemovedInDjango30Warning
 from django.utils.log import DEFAULT_LOGGING
 
+try:
+    import MySQLdb
+except ImportError:
+    pass
+else:
+    # Ignore informational warnings from QuerySet.explain().
+    warnings.filterwarnings('ignore', r'\(1003, *', category=MySQLdb.Warning)
+
 # Make deprecation warnings errors to ensure no usage of deprecated features.
 warnings.simplefilter("error", RemovedInDjango30Warning)
 # Make runtime warning errors to ensure no usage of error prone patterns.
@@ -44,8 +52,7 @@ atexit.register(shutil.rmtree, TMPDIR)
 SUBDIRS_TO_SKIP = [
     'data',
     'import_error_package',
-    'test_discovery_sample',
-    'test_discovery_sample2',
+    'test_runner_apps',
 ]
 
 ALWAYS_INSTALLED_APPS = [
@@ -86,12 +93,11 @@ def get_test_modules():
 
     for modpath, dirpath in discovery_paths:
         for f in os.listdir(dirpath):
-            if ('.' in f or
-                    os.path.basename(f) in SUBDIRS_TO_SKIP or
-                    os.path.isfile(f) or
-                    not os.path.exists(os.path.join(dirpath, f, '__init__.py'))):
-                continue
-            modules.append((modpath, f))
+            if ('.' not in f and
+                    os.path.basename(f) not in SUBDIRS_TO_SKIP and
+                    not os.path.isfile(f) and
+                    os.path.exists(os.path.join(dirpath, f, '__init__.py'))):
+                modules.append((modpath, f))
     return modules
 
 
@@ -190,13 +196,11 @@ def setup(verbosity, test_labels, parallel):
         # if the module (or an ancestor) was named on the command line, or
         # no modules were named (i.e., run all), import
         # this module and add it to INSTALLED_APPS.
-        if not test_labels:
-            module_found_in_labels = True
-        else:
-            module_found_in_labels = any(
-                # exact match or ancestor match
-                module_label == label or module_label.startswith(label + '.')
-                for label in test_labels_set)
+        module_found_in_labels = not test_labels or any(
+            # exact match or ancestor match
+            module_label == label or module_label.startswith(label + '.')
+            for label in test_labels_set
+        )
 
         if module_name in CONTRIB_TESTS_TO_APPS and module_found_in_labels:
             settings.INSTALLED_APPS.append(CONTRIB_TESTS_TO_APPS[module_name])
@@ -455,8 +459,7 @@ if __name__ == "__main__":
     if options.settings:
         os.environ['DJANGO_SETTINGS_MODULE'] = options.settings
     else:
-        if "DJANGO_SETTINGS_MODULE" not in os.environ:
-            os.environ['DJANGO_SETTINGS_MODULE'] = 'test_sqlite'
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_sqlite')
         options.settings = os.environ['DJANGO_SETTINGS_MODULE']
 
     if options.selenium:

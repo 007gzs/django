@@ -523,7 +523,8 @@ class FileSessionTests(SessionTestsMixin, unittest.TestCase):
         shutil.rmtree(self.temp_session_store)
 
     @override_settings(
-        SESSION_FILE_PATH="/if/this/directory/exists/you/have/a/weird/computer")
+        SESSION_FILE_PATH='/if/this/directory/exists/you/have/a/weird/computer',
+    )
     def test_configuration_check(self):
         del self.backend._storage_path
         # Make sure the file backend checks for a good storage dir
@@ -659,6 +660,16 @@ class SessionMiddlewareTests(TestCase):
             str(response.cookies[settings.SESSION_COOKIE_NAME])
         )
 
+    @override_settings(SESSION_COOKIE_SAMESITE='Strict')
+    def test_samesite_session_cookie(self):
+        request = RequestFactory().get('/')
+        response = HttpResponse()
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session['hello'] = 'world'
+        response = middleware.process_response(request, response)
+        self.assertEqual(response.cookies[settings.SESSION_COOKIE_NAME]['samesite'], 'Strict')
+
     @override_settings(SESSION_COOKIE_HTTPONLY=False)
     def test_no_httponly_session_cookie(self):
         request = RequestFactory().get('/')
@@ -730,9 +741,9 @@ class SessionMiddlewareTests(TestCase):
 
         # The cookie was deleted, not recreated.
         # A deleted cookie header looks like:
-        #  Set-Cookie: sessionid=; expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=0; Path=/
+        #  Set-Cookie: sessionid=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/
         self.assertEqual(
-            'Set-Cookie: {}=""; expires=Thu, 01-Jan-1970 00:00:00 GMT; '
+            'Set-Cookie: {}=""; expires=Thu, 01 Jan 1970 00:00:00 GMT; '
             'Max-Age=0; Path=/'.format(
                 settings.SESSION_COOKIE_NAME,
             ),
@@ -758,11 +769,11 @@ class SessionMiddlewareTests(TestCase):
         # The cookie was deleted, not recreated.
         # A deleted cookie header with a custom domain and path looks like:
         #  Set-Cookie: sessionid=; Domain=.example.local;
-        #              expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=0;
+        #              expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;
         #              Path=/example/
         self.assertEqual(
             'Set-Cookie: {}=""; Domain=.example.local; expires=Thu, '
-            '01-Jan-1970 00:00:00 GMT; Max-Age=0; Path=/example/'.format(
+            '01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/example/'.format(
                 settings.SESSION_COOKIE_NAME,
             ),
             str(response.cookies[settings.SESSION_COOKIE_NAME])

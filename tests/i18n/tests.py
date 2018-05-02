@@ -3,11 +3,15 @@ import decimal
 import gettext as gettext_module
 import os
 import pickle
+import re
+import tempfile
 from contextlib import contextmanager
 from importlib import import_module
 from threading import local
+from unittest import mock
 
 from django import forms
+from django.apps import AppConfig
 from django.conf import settings
 from django.conf.locale import LANG_INFO
 from django.conf.urls.i18n import i18n_patterns
@@ -26,8 +30,8 @@ from django.utils.translation import (
     LANGUAGE_SESSION_KEY, activate, check_for_language, deactivate,
     get_language, get_language_bidi, get_language_from_request,
     get_language_info, gettext, gettext_lazy, ngettext, ngettext_lazy,
-    npgettext, npgettext_lazy, pgettext, to_locale, trans_real, ugettext,
-    ugettext_lazy, ungettext, ungettext_lazy,
+    npgettext, npgettext_lazy, pgettext, to_locale, trans_null, trans_real,
+    ugettext, ugettext_lazy, ungettext, ungettext_lazy,
 )
 
 from .forms import CompanyForm, I18nForm, SelectDateForm
@@ -37,6 +41,11 @@ here = os.path.dirname(os.path.abspath(__file__))
 extended_locale_paths = settings.LOCALE_PATHS + [
     os.path.join(here, 'other', 'locale'),
 ]
+
+
+class AppModuleStub:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 
 @contextmanager
@@ -443,7 +452,7 @@ class FormattingTests(SimpleTestCase):
             self.assertEqual(datetime.date(2009, 12, 31), form2.cleaned_data['date_field'])
             self.assertHTMLEqual(
                 '<select name="mydate_month" id="id_mydate_month">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">gener</option>'
                 '<option value="2">febrer</option>'
                 '<option value="3">mar\xe7</option>'
@@ -458,7 +467,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="12" selected>desembre</option>'
                 '</select>'
                 '<select name="mydate_day" id="id_mydate_day">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">1</option>'
                 '<option value="2">2</option>'
                 '<option value="3">3</option>'
@@ -492,7 +501,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="31" selected>31</option>'
                 '</select>'
                 '<select name="mydate_year" id="id_mydate_year">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="2009" selected>2009</option>'
                 '<option value="2010">2010</option>'
                 '<option value="2011">2011</option>'
@@ -622,7 +631,7 @@ class FormattingTests(SimpleTestCase):
             self.assertEqual(datetime.date(2009, 12, 31), form5.cleaned_data['date_field'])
             self.assertHTMLEqual(
                 '<select name="mydate_day" id="id_mydate_day">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">1</option>'
                 '<option value="2">2</option>'
                 '<option value="3">3</option>'
@@ -656,7 +665,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="31" selected>31</option>'
                 '</select>'
                 '<select name="mydate_month" id="id_mydate_month">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">gener</option>'
                 '<option value="2">febrer</option>'
                 '<option value="3">mar\xe7</option>'
@@ -671,7 +680,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="12" selected>desembre</option>'
                 '</select>'
                 '<select name="mydate_year" id="id_mydate_year">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="2009" selected>2009</option>'
                 '<option value="2010">2010</option>'
                 '<option value="2011">2011</option>'
@@ -690,7 +699,7 @@ class FormattingTests(SimpleTestCase):
         with translation.override('ru', deactivate=True):
             self.assertHTMLEqual(
                 '<select name="mydate_day" id="id_mydate_day">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">1</option>'
                 '<option value="2">2</option>'
                 '<option value="3">3</option>'
@@ -724,7 +733,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="31" selected>31</option>'
                 '</select>'
                 '<select name="mydate_month" id="id_mydate_month">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">\u042f\u043d\u0432\u0430\u0440\u044c</option>'
                 '<option value="2">\u0424\u0435\u0432\u0440\u0430\u043b\u044c</option>'
                 '<option value="3">\u041c\u0430\u0440\u0442</option>'
@@ -739,7 +748,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="12" selected>\u0414\u0435\u043a\u0430\u0431\u0440\u044c</option>'
                 '</select>'
                 '<select name="mydate_year" id="id_mydate_year">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="2009" selected>2009</option>'
                 '<option value="2010">2010</option>'
                 '<option value="2011">2011</option>'
@@ -819,7 +828,7 @@ class FormattingTests(SimpleTestCase):
             self.assertEqual(datetime.date(2009, 12, 31), form6.cleaned_data['date_field'])
             self.assertHTMLEqual(
                 '<select name="mydate_month" id="id_mydate_month">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">January</option>'
                 '<option value="2">February</option>'
                 '<option value="3">March</option>'
@@ -834,7 +843,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="12" selected>December</option>'
                 '</select>'
                 '<select name="mydate_day" id="id_mydate_day">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="1">1</option>'
                 '<option value="2">2</option>'
                 '<option value="3">3</option>'
@@ -868,7 +877,7 @@ class FormattingTests(SimpleTestCase):
                 '<option value="31" selected>31</option>'
                 '</select>'
                 '<select name="mydate_year" id="id_mydate_year">'
-                '<option value="0">---</option>'
+                '<option value="">---</option>'
                 '<option value="2009" selected>2009</option>'
                 '<option value="2010">2010</option>'
                 '<option value="2011">2011</option>'
@@ -909,13 +918,13 @@ class FormattingTests(SimpleTestCase):
             self.assertHTMLEqual(
                 form6.as_ul(),
                 '<li><label for="id_name">Name:</label>'
-                '<input id="id_name" type="text" name="name" value="acme" maxlength="50" required /></li>'
+                '<input id="id_name" type="text" name="name" value="acme" maxlength="50" required></li>'
                 '<li><label for="id_date_added">Date added:</label>'
-                '<input type="text" name="date_added" value="31.12.2009 06:00:00" id="id_date_added" required /></li>'
+                '<input type="text" name="date_added" value="31.12.2009 06:00:00" id="id_date_added" required></li>'
                 '<li><label for="id_cents_paid">Cents paid:</label>'
-                '<input type="text" name="cents_paid" value="59,47" id="id_cents_paid" required /></li>'
+                '<input type="text" name="cents_paid" value="59,47" id="id_cents_paid" required></li>'
                 '<li><label for="id_products_delivered">Products delivered:</label>'
-                '<input type="text" name="products_delivered" value="12000" id="id_products_delivered" required />'
+                '<input type="text" name="products_delivered" value="12000" id="id_products_delivered" required>'
                 '</li>'
             )
             self.assertEqual(localize_input(datetime.datetime(2009, 12, 31, 6, 0, 0)), '31.12.2009 06:00:00')
@@ -924,7 +933,7 @@ class FormattingTests(SimpleTestCase):
                 # Checking for the localized "products_delivered" field
                 self.assertInHTML(
                     '<input type="text" name="products_delivered" '
-                    'value="12.000" id="id_products_delivered" required />',
+                    'value="12.000" id="id_products_delivered" required>',
                     form6.as_ul()
                 )
 
@@ -1017,20 +1026,30 @@ class FormattingTests(SimpleTestCase):
 
     def test_localize_templatetag_and_filter(self):
         """
-        Tests the {% localize %} templatetag
+        Test the {% localize %} templatetag and the localize/unlocalize filters.
         """
-        context = Context({'value': 3.14})
+        context = Context({'float': 3.14, 'date': datetime.date(2016, 12, 31)})
         template1 = Template(
-            '{% load l10n %}{% localize %}{{ value }}{% endlocalize %};'
-            '{% localize on %}{{ value }}{% endlocalize %}'
+            '{% load l10n %}{% localize %}{{ float }}/{{ date }}{% endlocalize %}; '
+            '{% localize on %}{{ float }}/{{ date }}{% endlocalize %}'
         )
-        template2 = Template("{% load l10n %}{{ value }};{% localize off %}{{ value }};{% endlocalize %}{{ value }}")
-        template3 = Template('{% load l10n %}{{ value }};{{ value|unlocalize }}')
-        template4 = Template('{% load l10n %}{{ value }};{{ value|localize }}')
-        output1 = '3,14;3,14'
-        output2 = '3,14;3.14;3,14'
-        output3 = '3,14;3.14'
-        output4 = '3.14;3,14'
+        template2 = Template(
+            '{% load l10n %}{{ float }}/{{ date }}; '
+            '{% localize off %}{{ float }}/{{ date }};{% endlocalize %} '
+            '{{ float }}/{{ date }}'
+        )
+        template3 = Template(
+            '{% load l10n %}{{ float }}/{{ date }}; {{ float|unlocalize }}/{{ date|unlocalize }}'
+        )
+        template4 = Template(
+            '{% load l10n %}{{ float }}/{{ date }}; {{ float|localize }}/{{ date|localize }}'
+        )
+        expected_localized = '3,14/31. Dezember 2016'
+        expected_unlocalized = '3.14/Dez. 31, 2016'
+        output1 = '; '.join([expected_localized, expected_localized])
+        output2 = '; '.join([expected_localized, expected_unlocalized, expected_localized])
+        output3 = '; '.join([expected_localized, expected_unlocalized])
+        output4 = '; '.join([expected_unlocalized, expected_localized])
         with translation.override('de', deactivate=True):
             with self.settings(USE_L10N=False):
                 self.assertEqual(template1.render(context), output1)
@@ -1063,18 +1082,18 @@ class FormattingTests(SimpleTestCase):
 
             self.assertHTMLEqual(
                 template.render(context),
-                '<input id="id_date_added" name="date_added" type="text" value="31.12.2009 06:00:00" required />;'
-                '<input id="id_cents_paid" name="cents_paid" type="text" value="59,47" required />'
+                '<input id="id_date_added" name="date_added" type="text" value="31.12.2009 06:00:00" required>;'
+                '<input id="id_cents_paid" name="cents_paid" type="text" value="59,47" required>'
             )
             self.assertHTMLEqual(
                 template_as_text.render(context),
-                '<input id="id_date_added" name="date_added" type="text" value="31.12.2009 06:00:00" required />;'
-                ' <input id="id_cents_paid" name="cents_paid" type="text" value="59,47" required />'
+                '<input id="id_date_added" name="date_added" type="text" value="31.12.2009 06:00:00" required>;'
+                ' <input id="id_cents_paid" name="cents_paid" type="text" value="59,47" required>'
             )
             self.assertHTMLEqual(
                 template_as_hidden.render(context),
-                '<input id="id_date_added" name="date_added" type="hidden" value="31.12.2009 06:00:00" />;'
-                '<input id="id_cents_paid" name="cents_paid" type="hidden" value="59,47" />'
+                '<input id="id_date_added" name="date_added" type="hidden" value="31.12.2009 06:00:00">;'
+                '<input id="id_cents_paid" name="cents_paid" type="hidden" value="59,47">'
             )
 
     def test_format_arbitrary_settings(self):
@@ -1084,6 +1103,22 @@ class FormattingTests(SimpleTestCase):
         with self.settings(FORMAT_MODULE_PATH='i18n.other.locale'):
             with translation.override('fr', deactivate=True):
                 self.assertEqual('d/m/Y CUSTOM', get_format('CUSTOM_DAY_FORMAT'))
+
+    def test_admin_javascript_supported_input_formats(self):
+        """
+        The first input format for DATE_INPUT_FORMATS, TIME_INPUT_FORMATS, and
+        DATETIME_INPUT_FORMATS must not contain %f since that's unsupported by
+        the admin's time picker widget.
+        """
+        regex = re.compile('%([^BcdHImMpSwxXyY%])')
+        for language_code, language_name in settings.LANGUAGES:
+            for format_name in ('DATE_INPUT_FORMATS', 'TIME_INPUT_FORMATS', 'DATETIME_INPUT_FORMATS'):
+                with self.subTest(language=language_code, format=format_name):
+                    formatter = get_format(format_name, lang=language_code)[0]
+                    self.assertEqual(
+                        regex.findall(formatter), [],
+                        "%s locale's %s uses an unsupported format code." % (language_code, format_name)
+                    )
 
 
 class MiscTests(SimpleTestCase):
@@ -1132,7 +1167,7 @@ class MiscTests(SimpleTestCase):
             ('en; q=1.0, * ; q=0.5', [('en', 1.0), ('*', 0.5)]),
             # Bad headers
             ('en-gb;q=1.0000', []),
-            ('en;q=0.1234', [], ),
+            ('en;q=0.1234', []),
             ('en;q=.2', []),
             ('abcdefghi-au', []),
             ('**', []),
@@ -1272,6 +1307,50 @@ class MiscTests(SimpleTestCase):
         self.assertEqual(g(r), 'zh-hans')
 
     @override_settings(
+        USE_I18N=True,
+        LANGUAGES=[
+            ('en', 'English'),
+            ('de', 'German'),
+            ('de-at', 'Austrian German'),
+            ('pt-br', 'Portuguese (Brazil)'),
+        ],
+    )
+    def test_get_supported_language_variant_real(self):
+        g = trans_real.get_supported_language_variant
+        self.assertEqual(g('en'), 'en')
+        self.assertEqual(g('en-gb'), 'en')
+        self.assertEqual(g('de'), 'de')
+        self.assertEqual(g('de-at'), 'de-at')
+        self.assertEqual(g('de-ch'), 'de')
+        self.assertEqual(g('pt-br'), 'pt-br')
+        self.assertEqual(g('pt'), 'pt-br')
+        self.assertEqual(g('pt-pt'), 'pt-br')
+        with self.assertRaises(LookupError):
+            g('pt', strict=True)
+        with self.assertRaises(LookupError):
+            g('pt-pt', strict=True)
+        with self.assertRaises(LookupError):
+            g('xyz')
+        with self.assertRaises(LookupError):
+            g('xy-zz')
+
+    def test_get_supported_language_variant_null(self):
+        g = trans_null.get_supported_language_variant
+        self.assertEqual(g(settings.LANGUAGE_CODE), settings.LANGUAGE_CODE)
+        with self.assertRaises(LookupError):
+            g('pt')
+        with self.assertRaises(LookupError):
+            g('de')
+        with self.assertRaises(LookupError):
+            g('de-at')
+        with self.assertRaises(LookupError):
+            g('de', strict=True)
+        with self.assertRaises(LookupError):
+            g('de-at', strict=True)
+        with self.assertRaises(LookupError):
+            g('xyz')
+
+    @override_settings(
         LANGUAGES=[
             ('en', 'English'),
             ('de', 'German'),
@@ -1292,7 +1371,7 @@ class MiscTests(SimpleTestCase):
         self.assertIsNone(g('/de-simple-page/'))
 
     def test_get_language_from_path_null(self):
-        from django.utils.translation.trans_null import get_language_from_path as g
+        g = trans_null.get_language_from_path
         self.assertIsNone(g('/pl/'))
         self.assertIsNone(g('/pl'))
         self.assertIsNone(g('/xyz/'))
@@ -1374,6 +1453,20 @@ class DjangoFallbackResolutionOrderI18NTests(ResolutionOrderI18NTests):
 
     def test_django_fallback(self):
         self.assertEqual(gettext('Date/time'), 'Datum/Zeit')
+
+
+@override_settings(INSTALLED_APPS=['i18n.territorial_fallback'])
+class TranslationFallbackI18NTests(ResolutionOrderI18NTests):
+
+    def test_sparse_territory_catalog(self):
+        """
+        Untranslated strings for territorial language variants use the
+        translations of the generic language. In this case, the de-de
+        translation falls back to de.
+        """
+        with translation.override('de-de'):
+            self.assertGettext('Test 1 (en)', '(de-de)')
+            self.assertGettext('Test 2 (en)', '(de)')
 
 
 class TestModels(TestCase):
@@ -1617,6 +1710,15 @@ class NonDjangoLanguageTests(SimpleTestCase):
     def test_non_django_language(self):
         self.assertEqual(get_language(), 'xxx')
         self.assertEqual(gettext("year"), "reay")
+
+    @override_settings(USE_I18N=True)
+    def test_check_for_langauge(self):
+        with tempfile.TemporaryDirectory() as app_dir:
+            os.makedirs(os.path.join(app_dir, 'locale', 'dummy_Lang', 'LC_MESSAGES'))
+            open(os.path.join(app_dir, 'locale', 'dummy_Lang', 'LC_MESSAGES', 'django.mo'), 'w').close()
+            app_config = AppConfig('dummy_app', AppModuleStub(__path__=[app_dir]))
+            with mock.patch('django.apps.apps.get_app_configs', return_value=[app_config]):
+                self.assertIs(check_for_language('dummy-lang'), True)
 
     @override_settings(
         USE_I18N=True,

@@ -294,6 +294,19 @@ class CsrfViewMiddlewareTestMixin:
             status_code=403,
         )
 
+    def test_https_malformed_host(self):
+        """
+        CsrfViewMiddleware generates a 403 response if it receives an HTTPS
+        request with a bad host.
+        """
+        req = self._get_GET_no_csrf_cookie_request()
+        req._is_secure_override = True
+        req.META['HTTP_HOST'] = '@malformed'
+        req.META['HTTP_REFERER'] = 'https://www.evil.org/somepage'
+        req.META['SERVER_PORT'] = '443'
+        response = self.mw.process_view(req, token_view, (), {})
+        self.assertEqual(response.status_code, 403)
+
     @override_settings(DEBUG=True)
     def test_https_malformed_referer(self):
         """
@@ -572,6 +585,14 @@ class CsrfViewMiddlewareTests(CsrfViewMiddlewareTestMixin, SimpleTestCase):
             resp2 = self.mw.process_response(req, resp)
             max_age = resp2.cookies.get('csrfcookie').get('max-age')
             self.assertEqual(max_age, '')
+
+    def test_csrf_cookie_samesite(self):
+        req = self._get_GET_no_csrf_cookie_request()
+        with self.settings(CSRF_COOKIE_NAME='csrfcookie', CSRF_COOKIE_SAMESITE='Strict'):
+            self.mw.process_view(req, token_view, (), {})
+            resp = token_view(req)
+            resp2 = self.mw.process_response(req, resp)
+            self.assertEqual(resp2.cookies['csrfcookie']['samesite'], 'Strict')
 
     def test_process_view_token_too_long(self):
         """
