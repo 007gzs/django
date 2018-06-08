@@ -11,8 +11,9 @@ from django.utils.datastructures import OrderedSet
 from django.utils.deprecation import RemovedInDjango21Warning
 from django.utils.encoding import force_text
 
-FieldInfo = namedtuple('FieldInfo', FieldInfo._fields + ('extra',))
-InfoLine = namedtuple('InfoLine', 'col_name data_type max_len num_prec num_scale extra column_default')
+TableInfo = namedtuple('TableInfo', TableInfo._fields + ('comment',))
+FieldInfo = namedtuple('FieldInfo', FieldInfo._fields + ('extra', 'comment'))
+InfoLine = namedtuple('InfoLine', 'col_name data_type max_len num_prec num_scale extra column_default comment')
 
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
@@ -53,8 +54,11 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         """
         Returns a list of table and view names in the current database.
         """
-        cursor.execute("SHOW FULL TABLES")
-        return [TableInfo(row[0], {'BASE TABLE': 't', 'VIEW': 'v'}.get(row[1]))
+        cursor.execute("""
+            SELECT table_name, table_type, table_comment
+            FROM information_schema.tables
+            where table_schema = DATABASE()""")
+        return [TableInfo(row[0], {'BASE TABLE': 't', 'VIEW': 'v'}.get(row[1]), row[2])
                 for row in cursor.fetchall()]
 
     def get_table_description(self, cursor, table_name):
@@ -68,7 +72,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         # - auto_increment is not available in cursor.description
         cursor.execute("""
             SELECT column_name, data_type, character_maximum_length, numeric_precision,
-                   numeric_scale, extra, column_default
+                   numeric_scale, extra, column_default, column_comment
             FROM information_schema.columns
             WHERE table_name = %s AND table_schema = DATABASE()""", [table_name])
         field_info = {line[0]: InfoLine(*line) for line in cursor.fetchall()}
@@ -92,6 +96,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                         line[6],
                         field_info[col_name].column_default,
                         field_info[col_name].extra,
+                        field_info[col_name].comment,
                     )
                 ))
             )

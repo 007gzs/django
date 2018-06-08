@@ -62,6 +62,9 @@ class Command(BaseCommand):
             known_models = []
             tables_to_introspect = options['table'] or connection.introspection.table_names(cursor)
 
+            table_comments = {ti.name: ti.comment for ti in connection.introspection.get_table_list(cursor)
+                              if getattr(ti, 'comment', None) is not None and ti.type == 't'}
+
             for table_name in tables_to_introspect:
                 if table_name_filter is not None and callable(table_name_filter):
                     if not table_name_filter(table_name):
@@ -97,6 +100,11 @@ class Command(BaseCommand):
                     extra_params = OrderedDict()  # Holds Field parameters such as 'db_column'.
                     column_name = row[0]
                     is_relation = column_name in relations
+
+                    comment = getattr(row, 'comment', None)
+                    comment = comment.replace('\n', ' ').replace('\r', ' ').strip() if comment is not None else None
+                    if comment:
+                        extra_params['verbose_name'] = comment
 
                     att_name, params, notes = self.normalize_col_name(
                         column_name, used_column_names, is_relation)
@@ -166,7 +174,9 @@ class Command(BaseCommand):
                     if comment_notes:
                         field_desc += '  # ' + ' '.join(comment_notes)
                     yield '    %s' % field_desc
-                for meta_line in self.get_meta(table_name, constraints, column_to_field_name):
+                comment = table_comments.get(table_name, None)
+                comment = comment.replace('\n', ' ').replace('\r', ' ').strip() if comment is not None else None
+                for meta_line in self.get_meta(table_name, constraints, column_to_field_name, comment):
                     yield meta_line
 
     def normalize_col_name(self, col_name, used_column_names, is_relation):
@@ -263,7 +273,7 @@ class Command(BaseCommand):
 
         return field_type, field_params, field_notes
 
-    def get_meta(self, table_name, constraints, column_to_field_name):
+    def get_meta(self, table_name, constraints, column_to_field_name, comment=None):
         """
         Return a sequence comprising the lines of code necessary
         to construct the inner Meta class for the model corresponding
@@ -282,6 +292,8 @@ class Command(BaseCommand):
                 "    class Meta:",
                 "        managed = False",
                 "        db_table = '%s'" % table_name]
+        if comment:
+            meta += ["        verbose_name = '%s'" % comment]
         if unique_together:
             tup = '(' + ', '.join(unique_together) + ',)'
             meta += ["        unique_together = %s" % tup]
