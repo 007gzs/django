@@ -83,6 +83,10 @@ class Command(BaseCommand):
                         c['columns'][0] for c in constraints.values()
                         if c['unique'] and len(c['columns']) == 1
                     ]
+                    index_columns = [
+                        c['columns'][0] for c in constraints.values()
+                        if not c['unique'] and len(c['columns']) == 1
+                    ]
                     table_description = connection.introspection.get_table_description(cursor, table_name)
                 except Exception as e:
                     yield "# Unable to inspect table '%s'" % table_name
@@ -119,7 +123,8 @@ class Command(BaseCommand):
                         extra_params['primary_key'] = True
                     elif column_name in unique_columns:
                         extra_params['unique'] = True
-
+                    elif column_name in index_columns:
+                        extra_params['db_index'] = True
                     if is_relation:
                         rel_to = (
                             "self" if relations[column_name][1] == table_name
@@ -280,6 +285,7 @@ class Command(BaseCommand):
         to the given database table name.
         """
         unique_together = []
+        index_together = []
         for index, params in constraints.items():
             if params['unique']:
                 columns = params['columns']
@@ -288,6 +294,14 @@ class Command(BaseCommand):
                     # so we build the string rather than interpolate the tuple
                     tup = '(' + ', '.join("'%s'" % column_to_field_name[c] for c in columns) + ')'
                     unique_together.append(tup)
+            else:
+                columns = params['columns']
+                if len(columns) > 1:
+                    # we do not want to include the u"" or u'' prefix
+                    # so we build the string rather than interpolate the tuple
+                    tup = '(' + ', '.join("'%s'" % column_to_field_name[c] for c in columns) + ')'
+                    index_together.append(tup)
+
         meta = ["",
                 "    class Meta:",
                 "        managed = False",
@@ -297,4 +311,7 @@ class Command(BaseCommand):
         if unique_together:
             tup = '(' + ', '.join(unique_together) + ',)'
             meta += ["        unique_together = %s" % tup]
+        if index_together:
+            tup = '(' + ', '.join(index_together) + ',)'
+            meta += ["        index_together = %s" % tup]
         return meta
