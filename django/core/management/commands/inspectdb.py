@@ -307,7 +307,7 @@ class Command(BaseCommand):
                 "        managed = False",
                 "        db_table = '%s'" % table_name]
         if comment:
-            meta += ["        verbose_name = '%s'" % comment]
+            meta += ["        verbose_name = verbose_name_plural = '%s'" % comment]
         if unique_together:
             tup = '(' + ', '.join(unique_together) + ',)'
             meta += ["        unique_together = %s" % tup]
