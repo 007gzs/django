@@ -664,7 +664,7 @@ class SerializationTests(SimpleTestCase):
     # - JSON supports only milliseconds, microseconds will be truncated.
     # - PyYAML dumps the UTC offset correctly for timezone-aware datetimes,
     #   but when it loads this representation, it subtracts the offset and
-    #   returns a naive datetime object in UTC (http://pyyaml.org/ticket/202).
+    #   returns a naive datetime object in UTC. See ticket #18867.
     # Tests are adapted to take these quirks into account.
 
     def assert_python_contains_datetime(self, objects, dt):
@@ -700,7 +700,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 13:20:30")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt, dt)
@@ -724,7 +724,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 13:20:30.405060")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt, dt)
@@ -748,7 +748,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 17:20:30.405060+07:00")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
@@ -772,7 +772,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 10:20:30+00:00")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
@@ -796,7 +796,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 13:20:30+03:00")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
@@ -820,7 +820,7 @@ class SerializationTests(SimpleTestCase):
         self.assertEqual(obj.dt, dt)
 
         if not isinstance(serializers.get_serializer('yaml'), serializers.BadSerializer):
-            data = serializers.serialize('yaml', [Event(dt=dt)])
+            data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 17:20:30+07:00")
             obj = next(serializers.deserialize('yaml', data)).object
             self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
