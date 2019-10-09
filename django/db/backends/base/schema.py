@@ -141,7 +141,7 @@ class BaseDatabaseSchemaEditor:
 
     # Field <-> database mapping functions
 
-    def column_sql(self, model, field, include_default=False):
+    def column_sql(self, model, field, include_default=True, include_comment=True):
         """
         Take a field and return its column definition.
         The field must already have had set_attributes_from_name() called.
@@ -158,16 +158,22 @@ class BaseDatabaseSchemaEditor:
         # If we were told to include a default value, do so
         include_default = include_default and not self.skip_default(field)
         if include_default:
-            default_value = self.effective_default(field)
-            if default_value is not None:
-                if self.connection.features.requires_literal_defaults:
-                    # Some databases can't take defaults as a parameter (oracle)
-                    # If this is the case, the individual schema backend should
-                    # implement prepare_default
-                    sql += " DEFAULT %s" % self.prepare_default(default_value)
-                else:
-                    sql += " DEFAULT %s"
-                    params += [default_value]
+            if getattr(field, 'auto_now', False) or getattr(field, 'auto_now_add', False):
+                if getattr(field, 'auto_now_add', False):
+                    sql += " DEFAULT CURRENT_TIMESTAMP"
+                elif getattr(field, 'auto_now', False):
+                    sql += " DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+            else:
+                default_value = self.effective_default(field)
+                if default_value is not None:
+                    if self.connection.features.requires_literal_defaults:
+                        # Some databases can't take defaults as a parameter (oracle)
+                        # If this is the case, the individual schema backend should
+                        # implement prepare_default
+                        sql += " DEFAULT %s" % self.prepare_default(default_value)
+                    else:
+                        sql += " DEFAULT %s"
+                        params += [default_value]
         # Oracle treats the empty string ('') as null, so coerce the null
         # option whenever '' is a possible value.
         if (field.empty_strings_allowed and not field.primary_key and
@@ -182,6 +188,8 @@ class BaseDatabaseSchemaEditor:
             sql += " PRIMARY KEY"
         elif field.unique:
             sql += " UNIQUE"
+        if include_comment:
+            sql += " COMMENT '%s'" % field.verbose_name
         # Optionally add the tablespace if it's an implicitly indexed column
         tablespace = field.db_tablespace or model._meta.db_tablespace
         if tablespace and self.connection.features.supports_tablespaces and field.unique:
@@ -299,6 +307,10 @@ class BaseDatabaseSchemaEditor:
             "table": self.quote_name(model._meta.db_table),
             "definition": ", ".join(constraint for constraint in (*column_sqls, *constraints) if constraint),
         }
+        if model._meta.verbose_name:
+            comment_sql = self.connection.ops.comment_sql(model._meta.verbose_name)
+            if comment_sql:
+                sql += ' ' + comment_sql
         if model._meta.db_tablespace:
             tablespace_sql = self.connection.ops.tablespace_sql(model._meta.db_tablespace)
             if tablespace_sql:
