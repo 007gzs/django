@@ -107,7 +107,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'BooleanField': 'bool',
         'CharField': 'varchar(%(max_length)s)',
         'DateField': 'date',
-        'DateTimeField': 'datetime(6)',
+        'DateTimeField': 'timestamp',
         'DecimalField': 'numeric(%(max_digits)s, %(decimal_places)s)',
         'DurationField': 'bigint',
         'FileField': 'varchar(%(max_length)s)',
