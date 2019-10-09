@@ -59,6 +59,9 @@ class Command(BaseCommand):
             known_models = []
             table_info = connection.introspection.get_table_list(cursor)
 
+            table_comments = {ti.name: ti.comment for ti in connection.introspection.get_table_list(cursor)
+                              if getattr(ti, 'comment', None) is not None and ti.type == 't'}
+
             # Determine types of tables and/or views to be introspected.
             types = {'t'}
             if options['include_partitions']:
@@ -84,6 +87,10 @@ class Command(BaseCommand):
                         c['columns'][0] for c in constraints.values()
                         if c['unique'] and len(c['columns']) == 1
                     ]
+                    index_columns = [
+                        c['columns'][0] for c in constraints.values()
+                        if not c['unique'] and len(c['columns']) == 1
+                    ]
                     table_description = connection.introspection.get_table_description(cursor, table_name)
                 except Exception as e:
                     yield "# Unable to inspect table '%s'" % table_name
@@ -102,6 +109,11 @@ class Command(BaseCommand):
                     column_name = row.name
                     is_relation = column_name in relations
 
+                    comment = getattr(row, 'comment', None)
+                    comment = comment.replace('\n', ' ').replace('\r', ' ').strip() if comment is not None else None
+                    if comment:
+                        extra_params['verbose_name'] = comment
+
                     att_name, params, notes = self.normalize_col_name(
                         column_name, used_column_names, is_relation)
                     extra_params.update(params)
@@ -115,6 +127,8 @@ class Command(BaseCommand):
                         extra_params['primary_key'] = True
                     elif column_name in unique_columns:
                         extra_params['unique'] = True
+                    elif column_name in index_columns:
+                        extra_params['db_index'] = True
 
                     if is_relation:
                         rel_to = (
@@ -167,7 +181,11 @@ class Command(BaseCommand):
                     yield '    %s' % field_desc
                 is_view = any(info.name == table_name and info.type == 'v' for info in table_info)
                 is_partition = any(info.name == table_name and info.type == 'p' for info in table_info)
-                for meta_line in self.get_meta(table_name, constraints, column_to_field_name, is_view, is_partition):
+                comment = table_comments.get(table_name, None)
+                comment = comment.replace('\n', ' ').replace('\r', ' ').strip() if comment is not None else None
+                for meta_line in self.get_meta(
+                    table_name, constraints, column_to_field_name, is_view, is_partition, comment
+                ):
                     yield meta_line
 
     def normalize_col_name(self, col_name, used_column_names, is_relation):
@@ -264,13 +282,14 @@ class Command(BaseCommand):
 
         return field_type, field_params, field_notes
 
-    def get_meta(self, table_name, constraints, column_to_field_name, is_view, is_partition):
+    def get_meta(self, table_name, constraints, column_to_field_name, is_view, is_partition, comment=None):
         """
         Return a sequence comprising the lines of code necessary
         to construct the inner Meta class for the model corresponding
         to the given database table name.
         """
         unique_together = []
+        index_together = []
         has_unsupported_constraint = False
         for params in constraints.values():
             if params['unique']:
@@ -280,6 +299,10 @@ class Command(BaseCommand):
                 columns = [x for x in columns if x is not None]
                 if len(columns) > 1:
                     unique_together.append(str(tuple(column_to_field_name[c] for c in columns)))
+            else:
+                columns = params['columns']
+                if len(columns) > 1:
+                    index_together.append(str(tuple(column_to_field_name[c] for c in columns)))
         if is_view:
             managed_comment = "  # Created from a view. Don't remove."
         elif is_partition:
@@ -294,7 +317,12 @@ class Command(BaseCommand):
             '        managed = False%s' % managed_comment,
             '        db_table = %r' % table_name
         ]
+        if comment:
+            meta += ["        verbose_name = verbose_name_plural = '%s'" % comment]
         if unique_together:
             tup = '(' + ', '.join(unique_together) + ',)'
             meta += ["        unique_together = %s" % tup]
+        if index_together:
+            tup = '(' + ', '.join(index_together) + ',)'
+            meta += ["        index_together = %s" % tup]
         return meta

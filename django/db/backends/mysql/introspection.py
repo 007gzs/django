@@ -3,13 +3,16 @@ from collections import namedtuple
 from MySQLdb.constants import FIELD_TYPE
 
 from django.db.backends.base.introspection import (
-    BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo, TableInfo,
+    BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo, TableInfo as BaseTableInfo,
 )
 from django.db.models.indexes import Index
 from django.utils.datastructures import OrderedSet
 
-FieldInfo = namedtuple('FieldInfo', BaseFieldInfo._fields + ('extra', 'is_unsigned'))
-InfoLine = namedtuple('InfoLine', 'col_name data_type max_len num_prec num_scale extra column_default is_unsigned')
+TableInfo = namedtuple('TableInfo', BaseTableInfo._fields + ('comment', ))
+FieldInfo = namedtuple('FieldInfo', BaseFieldInfo._fields + ('extra', 'is_unsigned', 'comment'))
+InfoLine = namedtuple(
+    'InfoLine', 'col_name data_type max_len num_prec num_scale extra column_default is_unsigned comment'
+)
 
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
@@ -52,8 +55,12 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_list(self, cursor):
         """Return a list of table and view names in the current database."""
-        cursor.execute("SHOW FULL TABLES")
-        return [TableInfo(row[0], {'BASE TABLE': 't', 'VIEW': 'v'}.get(row[1]))
+        cursor.execute("""
+            SELECT table_name, table_type, table_comment
+            FROM information_schema.tables
+            where table_schema = DATABASE()""")
+
+        return [TableInfo(row[0], {'BASE TABLE': 't', 'VIEW': 'v'}.get(row[1]), row[2])
                 for row in cursor.fetchall()]
 
     def get_table_description(self, cursor, table_name):
@@ -73,7 +80,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 CASE
                     WHEN column_type LIKE '%% unsigned' THEN 1
                     ELSE 0
-                END AS is_unsigned
+                END AS is_unsigned, column_comment
             FROM information_schema.columns
             WHERE table_name = %s AND table_schema = DATABASE()""", [table_name])
         field_info = {line[0]: InfoLine(*line) for line in cursor.fetchall()}
@@ -95,6 +102,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 info.column_default,
                 info.extra,
                 info.is_unsigned,
+                info.comment,
             ))
         return fields
 
