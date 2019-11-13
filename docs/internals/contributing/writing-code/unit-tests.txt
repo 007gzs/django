@@ -244,6 +244,7 @@ dependencies:
 *  gettext_ (:ref:`gettext_on_windows`)
 *  selenium_
 *  sqlparse_ (required)
+*  tblib_ 1.5.0+
 
 You can find these dependencies in `pip requirements files`_ inside the
 ``tests/requirements`` directory of the Django source tree and install them
@@ -287,6 +288,7 @@ service.
 .. _selenium: https://pypi.org/project/selenium/
 .. _sqlparse: https://pypi.org/project/sqlparse/
 .. _pip requirements files: https://pip.pypa.io/en/latest/user_guide/#requirements-files
+.. _tblib: https://pypi.org/project/tblib/
 .. _Watchman: https://facebook.github.io/watchman/
 
 Code coverage
@@ -323,6 +325,27 @@ in ``tests/auth_tests``.
 
 Troubleshooting
 ===============
+
+Test suite hangs or shows failures on ``master`` branch
+-------------------------------------------------------
+
+Ensure you have the latest point release of a :ref:`supported Python version
+<faq-python-version-support>`, since there are often bugs in earlier versions
+that may cause the test suite to fail or hang.
+
+On **macOS** (High Sierra and newer versions), you might see this message
+logged, after which the tests hang::
+
+    objc[42074]: +[__NSPlaceholderDate initialize] may have been in progress in
+    another thread when fork() was called.
+
+To avoid this set a ``OBJC_DISABLE_INITIALIZE_FORK_SAFETY`` environment
+variable, for example::
+
+    $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./runtests.py
+
+Or add ``export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`` to your shell's
+startup file (e.g. ``~/.profile``).
 
 Many test failures with ``UnicodeEncodeError``
 ----------------------------------------------
@@ -411,12 +434,12 @@ You can also use the ``DJANGO_TEST_PROCESSES`` environment variable for this
 purpose.
 
 Tips for writing tests
-----------------------
+======================
 
 .. highlight:: python
 
 Isolating model registration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
 To avoid polluting the global :attr:`~django.apps.apps` registry and prevent
 unnecessary table creation, models defined in a test method should be bound to

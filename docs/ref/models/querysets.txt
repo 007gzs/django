@@ -126,7 +126,7 @@ described here.
 
 Here's the formal declaration of a ``QuerySet``:
 
-.. class:: QuerySet(model=None, query=None, using=None)
+.. class:: QuerySet(model=None, query=None, using=None, hints=None)
 
     Usually when you'll interact with a ``QuerySet`` you'll use it by
     :ref:`chaining filters <chaining-filters>`. To make this work, most
@@ -1711,7 +1711,8 @@ them::
 
 Currently, the ``postgresql``, ``oracle``, and ``mysql`` database
 backends support ``select_for_update()``. However, MySQL doesn't support the
-``nowait``, ``skip_locked``, and ``of`` arguments.
+``of`` argument and the ``nowait`` and ``skip_locked`` arguments are supported
+only on MySQL 8.0.1+.
 
 Passing ``nowait=True``, ``skip_locked=True``, or ``of`` to
 ``select_for_update()`` using database backends that do not support these
