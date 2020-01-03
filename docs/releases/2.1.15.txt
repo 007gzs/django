@@ -1,11 +1,10 @@
-==========================
-Django 2.2.8 release notes
-==========================
+===========================
+Django 2.1.15 release notes
+===========================
 
 *December 2, 2019*
 
-Django 2.2.8 fixes a security issue, several bugs in 2.2.7, and adds
-compatibility with Python 3.8.
+Django 2.1.15 fixes a security issue and a data loss bug in 2.1.14.
 
 CVE-2019-19118: Privilege escalation in the Django admin.
 =========================================================
@@ -46,14 +45,6 @@ itself.
 
 Bugfixes
 ========
-
-* Fixed a data loss possibility in the admin changelist view when a custom
-  :ref:`formset's prefix <formset-prefix>` contains regular expression special
-  characters, e.g. `'$'` (:ticket:`31031`).
-
-* Fixed a regression in Django 2.2.1 that caused a crash when migrating
-  permissions for proxy models with a multiple database setup if the
-  ``default`` entry was empty (:ticket:`31021`).
 
 * Fixed a data loss possibility in the
   :meth:`~django.db.models.query.QuerySet.select_for_update()`. When using
