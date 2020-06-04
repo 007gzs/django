@@ -98,6 +98,22 @@ class TranslationTests(SimpleTestCase):
         self.assertEqual(g('%d year', '%d years', 1) % 1, '1 year')
         self.assertEqual(g('%d year', '%d years', 2) % 2, '2 years')
 
+    @override_settings(LOCALE_PATHS=extended_locale_paths)
+    @translation.override('fr')
+    def test_multiple_plurals_per_language(self):
+        """
+        Normally, French has 2 plurals. As other/locale/fr/LC_MESSAGES/django.po
+        has a different plural equation with 3 plurals, this tests if those
+        plural are honored.
+        """
+        self.assertEqual(ngettext("%d singular", "%d plural", 0) % 0, "0 pluriel1")
+        self.assertEqual(ngettext("%d singular", "%d plural", 1) % 1, "1 singulier")
+        self.assertEqual(ngettext("%d singular", "%d plural", 2) % 2, "2 pluriel2")
+        french = trans_real.catalog()
+        # Internal _catalog can query subcatalogs (from different po files).
+        self.assertEqual(french._catalog[('%d singular', 0)], '%d singulier')
+        self.assertEqual(french._catalog[('%d hour', 0)], '%d heure')
+
     def test_override(self):
         activate('de')
         try:
@@ -339,6 +355,51 @@ class TranslationTests(SimpleTestCase):
         self.assertIs(trans_null.get_language_bidi(), False)
         with override_settings(LANGUAGE_CODE='he'):
             self.assertIs(get_language_bidi(), True)
+
+
+class TranslationLoadingTests(SimpleTestCase):
+    def setUp(self):
+        """Clear translation state."""
+        self._old_language = get_language()
+        self._old_translations = trans_real._translations
+        deactivate()
+        trans_real._translations = {}
+
+    def tearDown(self):
+        trans_real._translations = self._old_translations
+        activate(self._old_language)
+
+    @override_settings(
+        USE_I18N=True,
+        LANGUAGE_CODE='en',
+        LANGUAGES=[
+            ('en', 'English'),
+            ('en-ca', 'English (Canada)'),
+            ('en-nz', 'English (New Zealand)'),
+            ('en-au', 'English (Australia)'),
+        ],
+        LOCALE_PATHS=[os.path.join(here, 'loading')],
+        INSTALLED_APPS=['i18n.loading_app'],
+    )
+    def test_translation_loading(self):
+        """
+        "loading_app" does not have translations for all languages provided by
+        "loading". Catalogs are merged correctly.
+        """
+        tests = [
+            ('en', 'local country person'),
+            ('en_AU', 'aussie'),
+            ('en_NZ', 'kiwi'),
+            ('en_CA', 'canuck'),
+        ]
+        # Load all relevant translations.
+        for language, _ in tests:
+            activate(language)
+        # Catalogs are merged correctly.
+        for language, nickname in tests:
+            with self.subTest(language=language):
+                activate(language)
+                self.assertEqual(gettext('local country person'), nickname)
 
 
 class TranslationThreadSafetyTests(SimpleTestCase):
