@@ -440,6 +440,9 @@ class BaseDatabaseOperations:
             return "ROLLBACK;"
         return "COMMIT;"
 
+    def comment_sql(self, comment):
+        return ""
+
     def tablespace_sql(self, tablespace, inline=False):
         """
         Return the SQL that will be used in a query to define the tablespace.
