@@ -1611,7 +1611,7 @@ your test suite.
     :meth:`~SimpleTestCase.assertHTMLEqual`, the comparison is
     made on parsed content, hence only semantic differences are considered, not
     syntax differences. When invalid XML is passed in any parameter, an
-    ``AssertionError`` is always raised, even if both string are identical.
+    ``AssertionError`` is always raised, even if both strings are identical.
 
     XML declaration, document type, processing instructions, and comments are
     ignored. Only the root element and its children are compared.
@@ -1778,9 +1778,22 @@ If you are testing from an asynchronous function, you must also use the
 asynchronous test client. This is available as ``django.test.AsyncClient``,
 or as ``self.async_client`` on any test.
 
-With the exception of the ``follow`` parameter, which is not supported,
 ``AsyncClient`` has the same methods and signatures as the synchronous (normal)
-test client, but any method that makes a request must be awaited::
+test client, with two exceptions:
+
+* The ``follow`` parameter is not supported.
+* Headers passed as ``extra`` keyword arguments should not have the ``HTTP_``
+  prefix required by the synchronous client (see :meth:`Client.get`). For
+  example, here is how to set an HTTP ``Accept`` header::
+
+    >>> c = AsyncClient()
+    >>> c.get(
+    ...     '/customers/details/',
+    ...     {'name': 'fred', 'age': 7},
+    ...     ACCEPT='application/json'
+    ... )
+
+Using ``AsyncClient`` any method that makes a request must be awaited::
 
     async def test_my_thing(self):
         response = await self.async_client.get('/some-url/')

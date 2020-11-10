@@ -10,7 +10,10 @@ from django.db import (
     DataError, IntegrityError, NotSupportedError, OperationalError, connection,
     models,
 )
-from django.db.models import Count, F, OuterRef, Q, Subquery, Transform, Value
+from django.db.models import (
+    Count, ExpressionWrapper, F, IntegerField, OuterRef, Q, Subquery,
+    Transform, Value,
+)
 from django.db.models.expressions import RawSQL
 from django.db.models.fields.json import (
     KeyTextTransform, KeyTransform, KeyTransformFactory,
@@ -382,6 +385,17 @@ class TestQuerying(TestCase):
             [self.objs[4]],
         )
 
+    def test_expression_wrapper_key_transform(self):
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.annotate(
+                expr=ExpressionWrapper(
+                    KeyTransform('c', 'value'),
+                    output_field=IntegerField(),
+                ),
+            ).filter(expr__isnull=False),
+            self.objs[3:5],
+        )
+
     def test_has_key(self):
         self.assertSequenceEqual(
             NullableJSONModel.objects.filter(value__has_key='a'),
@@ -631,6 +645,16 @@ class TestQuerying(TestCase):
             ('value__0__in', [1], [self.objs[5]]),
             ('value__0__in', [1, 3], [self.objs[5]]),
             ('value__foo__in', ['bar'], [self.objs[7]]),
+            (
+                'value__foo__in',
+                [KeyTransform('foo', KeyTransform('bax', 'value'))],
+                [self.objs[7]],
+            ),
+            (
+                'value__foo__in',
+                [KeyTransform('foo', KeyTransform('bax', 'value')), 'baz'],
+                [self.objs[7]],
+            ),
             ('value__foo__in', ['bar', 'baz'], [self.objs[7]]),
             ('value__bar__in', [['foo', 'bar']], [self.objs[7]]),
             ('value__bar__in', [['foo', 'bar'], ['a']], [self.objs[7]]),
