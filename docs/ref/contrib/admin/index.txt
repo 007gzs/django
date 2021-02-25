@@ -59,8 +59,7 @@ visiting the URL you hooked it into (``/admin/``, by default).
 
 If you need to create a user to login with, use the :djadmin:`createsuperuser`
 command. By default, logging in to the admin requires that the user has the
-:attr:`~.User.is_superuser` or :attr:`~.User.is_staff` attribute set to
-``True``.
+:attr:`~.User.is_staff` attribute set to ``True``.
 
 Finally, determine which of your application's models should be editable in the
 admin interface. For each of those models, register them with the admin as
@@ -589,7 +588,7 @@ subclass::
               birthday = models.DateField()
 
               def decade_born_in(self):
-                  return self.birthday.strftime('%Y')[:3] + "0's"
+                  return '%d’s' % (self.birthday.year // 10 * 10)
               decade_born_in.short_description = 'Birth decade'
 
           class PersonAdmin(admin.ModelAdmin):
@@ -606,8 +605,8 @@ subclass::
       and add that method's name to ``list_display``. (See below for more
       on custom methods in ``list_display``.)
 
-    * If the field is a ``BooleanField``, Django will display a pretty "on" or
-      "off" icon instead of ``True`` or ``False``.
+    * If the field is a ``BooleanField``, Django will display a pretty "yes",
+      "no", or "unknown" icon instead of ``True``, ``False``, or ``None``.
 
     * If the string given is a method of the model, ``ModelAdmin`` or a
       callable, Django will HTML-escape the output by default. To escape
@@ -664,9 +663,9 @@ subclass::
               birth_date_view.empty_value_display = 'unknown'
 
     * If the string given is a method of the model, ``ModelAdmin`` or a
-      callable that returns True or False Django will display a pretty
-      "on" or "off" icon if you give the method a ``boolean`` attribute
-      whose value is ``True``.
+      callable that returns ``True``, ``False``, or ``None``, Django will
+      display a pretty "yes", "no", or "unknown" icon if you give the method a
+      ``boolean`` attribute whose value is ``True``.
 
       Here's a full example model::
 
@@ -678,7 +677,7 @@ subclass::
               birthday = models.DateField()
 
               def born_in_fifties(self):
-                  return self.birthday.strftime('%Y')[:3] == '195'
+                  return 1950 <= self.birthday.year < 1960
               born_in_fifties.boolean = True
 
           class PersonAdmin(admin.ModelAdmin):
@@ -2173,7 +2172,10 @@ Django admin JavaScript makes use of the `jQuery`_ library.
 To avoid conflicts with user-supplied scripts or libraries, Django's jQuery
 (version 3.5.1) is namespaced as ``django.jQuery``. If you want to use jQuery
 in your own admin JavaScript without including a second copy, you can use the
-``django.jQuery`` object on changelist and add/edit views.
+``django.jQuery`` object on changelist and add/edit views. Also, your own admin
+forms or widgets depending on ``django.jQuery`` must specify
+``js=['admin/js/jquery.init.js', …]`` when :ref:`declaring form media assets
+<assets-as-a-static-definition>`.
 
 .. versionchanged:: 3.0
 
@@ -2947,6 +2949,13 @@ Templates can override or extend base admin templates as described in
     Raises :class:`~django.core.exceptions.ImproperlyConfigured` if a model is
     abstract. and ``django.contrib.admin.sites.AlreadyRegistered`` if a model
     is already registered.
+
+.. method:: AdminSite.unregister(model_or_iterable)
+
+    Unregisters the given model class (or iterable of classes).
+
+    Raises ``django.contrib.admin.sites.NotRegistered`` if a model isn't
+    already registered.
 
 .. _hooking-adminsite-to-urlconf:
 

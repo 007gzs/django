@@ -1020,8 +1020,8 @@ The amount by which the DATAFILE_TMP is extended when more space is required.
 
 .. setting:: DATA_UPLOAD_MAX_MEMORY_SIZE
 
-DATA_UPLOAD_MAX_MEMORY_SIZE
----------------------------
+``DATA_UPLOAD_MAX_MEMORY_SIZE``
+-------------------------------
 
 Default: ``2621440`` (i.e. 2.5 MB).
 
@@ -1042,8 +1042,8 @@ See also :setting:`FILE_UPLOAD_MAX_MEMORY_SIZE`.
 
 .. setting:: DATA_UPLOAD_MAX_NUMBER_FIELDS
 
-DATA_UPLOAD_MAX_NUMBER_FIELDS
------------------------------
+``DATA_UPLOAD_MAX_NUMBER_FIELDS``
+---------------------------------
 
 Default: ``1000``
 
@@ -3171,6 +3171,10 @@ Default: ``None``
 The domain to use for session cookies. Set this to a string such as
 ``"example.com"`` for cross-domain cookies, or use ``None`` for a standard
 domain cookie.
+
+To use cross-domain cookies with :setting:`CSRF_USE_SESSIONS`, you must include
+a leading dot (e.g. ``".example.com"``) to accommodate the CSRF middleware's
+referer checking.
 
 Be cautious when updating this setting on a production site. If you update
 this setting to enable cross-domain cookies on a site that previously used

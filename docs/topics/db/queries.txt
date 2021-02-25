@@ -1224,7 +1224,8 @@ Things get more complicated if you use inheritance. Consider a subclass of
     django_blog = ThemeBlog(name='Django', tagline='Django is easy', theme='python')
     django_blog.save() # django_blog.pk == 3
 
-Due to how inheritance works, you have to set both ``pk`` and ``id`` to None::
+Due to how inheritance works, you have to set both ``pk`` and ``id`` to
+``None``::
 
     django_blog.pk = None
     django_blog.id = None
@@ -1283,7 +1284,7 @@ table. Example::
     >>> b = Blog.objects.get(pk=1)
 
     # Update all the headlines belonging to this Blog.
-    >>> Entry.objects.select_related().filter(blog=b).update(headline='Everything is the same')
+    >>> Entry.objects.filter(blog=b).update(headline='Everything is the same')
 
 Be aware that the ``update()`` method is converted directly to an SQL
 statement. It is a bulk operation for direct updates. It doesn't run any

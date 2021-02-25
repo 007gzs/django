@@ -814,8 +814,8 @@ ambiguous datetimes in daylight saving time. By default (when ``is_dst=None``),
 
 .. method:: none()
 
-Calling none() will create a queryset that never returns any objects and no
-query will be executed when accessing the results. A qs.none() queryset
+Calling ``none()`` will create a queryset that never returns any objects and no
+query will be executed when accessing the results. A ``qs.none()`` queryset
 is an instance of ``EmptyQuerySet``.
 
 Examples::
@@ -2181,7 +2181,8 @@ them, but it has a few caveats:
   ``batch_size``.
 * Updating fields defined on multi-table inheritance ancestors will incur an
   extra query per ancestor.
-* If ``objs`` contains duplicates, only the first one is updated.
+* When an individual batch contains duplicates, only the first instance in that
+  batch will result in an update.
 
 The ``batch_size`` parameter controls how many objects are saved in a single
 query. The default is to update all objects in one batch, except for SQLite
@@ -2216,7 +2217,7 @@ database query like ``count()`` would.
 ``in_bulk()``
 ~~~~~~~~~~~~~
 
-.. method:: in_bulk(id_list=None, field_name='pk')
+.. method:: in_bulk(id_list=None, *, field_name='pk')
 
 Takes a list of field values (``id_list``) and the ``field_name`` for those
 values, and returns a dictionary mapping each value to an instance of the
